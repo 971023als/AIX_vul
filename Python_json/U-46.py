@@ -1,6 +1,14 @@
 #!/usr/bin/python3
 import os
 import json  # Import the json module
+import re
+
+def get_min_length_from_line(line, setting_key):
+    pattern = re.compile(r'\b' + re.escape(setting_key) + r'\b.*?(\d+)')
+    match = pattern.search(line)
+    if match:
+        return int(match.group(1))
+    return None
 
 def check_password_min_length():
     results = {
