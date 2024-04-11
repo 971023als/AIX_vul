@@ -6,15 +6,15 @@ import sys
 if sys.stdout.encoding != 'UTF-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
-def check_access_control_files():
+def check_aix_access_controls():
     results = {
-        "분류": "파일 및 디렉터리 관리",
+        "분류": "네트워크 보안 설정",
         "코드": "U-18",
         "위험도": "상",
-        "진단 항목": "접속 IP 및 포트 제한",
+        "진단 항목": "접속 IP 및 포트 제한 (AIX 특화)",
         "진단 결과": "",
         "현황": [],
-        "대응방안": "특정 호스트에 대한 IP 주소 및 포트 제한 설정"
+        "대응방안": "AIX IPSec 또는 방화벽 규칙을 사용하여 특정 호스트 접근 제한"
     }
 
     hosts_deny_path = '/etc/hosts.deny'

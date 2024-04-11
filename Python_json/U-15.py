@@ -14,21 +14,22 @@ def find_world_writable_files(start_dir):
         "대응방안": "시스템 중요 파일에 world writable 파일이 존재하지 않거나, 존재 시 설정 이유를 확인"
     }
 
-    # Warning: Using '/' may significantly impact system performance.
-    # Consider running on a more specific directory for routine checks.
-    # start_dir = '/'  # Uncomment for full system scan
-    world_writable_files = []
+     world_writable_files = []
 
     for foldername, subfolders, filenames in os.walk(start_dir):
         for filename in filenames:
             filepath = os.path.join(foldername, filename)
             try:
-                if os.path.isfile(filepath):  # Ensure it's a file
+                # Skip symbolic links
+                if os.path.islink(filepath):
+                    continue
+                if os.path.isfile(filepath):  # Check it's a file, excluding symbolic links
                     mode = os.stat(filepath).st_mode
                     if mode & stat.S_IWOTH:  # Check world writable flag
                         world_writable_files.append(filepath)
             except Exception as e:
-                continue  # Handle inaccessible files gracefully
+                # Handle errors
+                continue
 
     if world_writable_files:
         results["진단 결과"] = "취약"

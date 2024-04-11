@@ -14,30 +14,28 @@ def check_web_service_directory_listing():
         "대응방안": "디렉터리 검색 기능 사용하지 않기"
     }
 
-    webconf_files = [".htaccess", "httpd.conf", "apache2.conf", "userdir.conf"]
+    # Example paths where IBM HTTP Server configuration files might reside
+    common_paths = [
+        "/usr/IBM/HTTPServer/conf",  # Common path for IBM HTTP Server
+        "/etc/httpd/conf",  # Standard Apache path, included for completeness
+    ]
+
+    webconf_files = ["httpd.conf", "apache2.conf"]
     vulnerable = False
 
-    for conf_file in webconf_files:
-        # 시스템에서 웹 구성 파일 찾기
-        find_command = f"find / -name {conf_file} -type f 2>/dev/null"
-        try:
-            find_output = subprocess.check_output(find_command, shell=True, text=True).strip().split('\n')
-            for file_path in find_output:
-                if file_path:
-                    with open(file_path, 'r') as file:
-                        content = file.read()
-                        if "userdir.conf" in file_path:
-                            if "userdir disabled" not in content.lower() and "options indexes" in content.lower() and "-indexes" not in content.lower():
-                                vulnerable = True
-                        else:
-                            if "options indexes" in content.lower() and "-indexes" not in content.lower():
-                                vulnerable = True
-                        if vulnerable:
-                            results["진단 결과"] = "취약"
-                            results["현황"].append(f"{file_path} 파일에 디렉터리 검색 기능을 사용하도록 설정되어 있습니다.")
-                            break
-        except subprocess.CalledProcessError:
-            continue  # find 명령어 실행 중 오류가 발생하면 다음 파일로 넘어감
+    for path in common_paths:
+        for conf_file in webconf_files:
+            file_path = os.path.join(path, conf_file)
+            if os.path.isfile(file_path):
+                with open(file_path, 'r') as file:
+                    content = file.read()
+                    if "options indexes" in content.lower() and "-indexes" not in content.lower():
+                        results["진단 결과"] = "취약"
+                        results["현황"].append(f"{file_path} 파일에 디렉터리 검색 기능을 사용하도록 설정되어 있습니다.")
+                        vulnerable = True
+                        break  # Stop checking further if vulnerability found
+        if vulnerable:
+            break  # Stop checking other common paths if vulnerability found
 
     if not vulnerable:
         results["진단 결과"] = "양호"

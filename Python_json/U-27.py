@@ -19,16 +19,16 @@ def check_rpc_services_disabled():
     inetd_conf = "/etc/inetd.conf"
     service_found = False
 
-    # /etc/xinetd.d 아래 서비스 검사
-    if os.path.isdir(xinetd_dir):
-        for service in rpc_services:
-            service_path = os.path.join(xinetd_dir, service)
-            if os.path.isfile(service_path):
-                with open(service_path, 'r') as file:
-                    if 'disable = yes' not in file.read():
-                        results["진단 결과"] = "취약"
-                        results["현황"].append(f"불필요한 RPC 서비스가 /etc/xinetd.d 디렉터리 내 서비스 파일에서 실행 중입니다: {service}")
-                        service_found = True
+    # Check in /etc/inetd.conf
+    if os.path.isfile("/etc/inetd.conf"):
+        with open("/etc/inetd.conf", 'r') as file:
+            inetd_contents = file.read()
+            for service in rpc_services:
+                # This basic check may need refinement to accurately parse inetd.conf
+                if service in inetd_contents and not service.startswith('#'):
+                    results["진단 결과"] = "취약"
+                    results["현황"].append(f"불필요한 RPC 서비스가 /etc/inetd.conf 파일에서 실행 중입니다: {service}")
+                    service_found = True
 
     # /etc/inetd.conf 파일 내 서비스 검사
     if os.path.isfile(inetd_conf):

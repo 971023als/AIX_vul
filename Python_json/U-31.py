@@ -16,26 +16,18 @@ def check_spam_mail_relay_restrictions():
     }
 
     search_directory = '/etc/mail/'
-    cmd = f"find {search_directory} -name 'sendmail.cf' -type f"
+    sendmail_cf_path = os.path.join(search_directory, 'sendmail.cf')
 
-    process = subprocess.run(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    if process.returncode == 0 and process.stdout:
-        sendmail_cf_files = process.stdout.strip().split('\n')
-        vulnerable_found = False
-        for file_path in sendmail_cf_files:
-            if os.path.isfile(file_path):
-                with open(file_path, 'r') as file:
-                    content = file.read()
-                    if re.search(r'R\$\*', content) or re.search(r'Relaying denied', content, re.IGNORECASE):
-                        results["현황"].append(f"{file_path} 파일에 릴레이 제한이 적절히 설정되어 있습니다.")
-                    else:
-                        vulnerable_found = True
-                        results["현황"].append(f"{file_path} 파일에 릴레이 제한 설정이 없습니다.")
-        if vulnerable_found:
-            results["진단 결과"] = "취약"
-        else:
-            results["진단 결과"] = "양호"
+    if os.path.isfile(sendmail_cf_path):
+        with open(sendmail_cf_path, 'r') as file:
+            content = file.read()
+            # This is a simplified check; consider more specific relay restrictions
+            if "DS" not in content:
+                results["진단 결과"] = "취약"
+                results["현황"].append(f"{sendmail_cf_path} 파일에 릴레이 제한 설정이 없습니다.")
+            else:
+                results["진단 결과"] = "양호"
+                results["현황"].append(f"{sendmail_cf_path} 파일에 릴레이 제한이 적절히 설정되어 있습니다.")
     else:
         results["진단 결과"] = "양호"
         results["현황"].append("sendmail.cf 파일을 찾을 수 없거나 접근할 수 없습니다.")

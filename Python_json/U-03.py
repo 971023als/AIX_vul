@@ -14,37 +14,26 @@ def check_account_lockout_threshold():
         "대응방안": "계정 잠금 임계값을 10회 이하로 설정"
     }
 
-    deny_files_checked = False
-    account_lockout_threshold_set = False
-    files_to_check = [
-        "/etc/pam.d/system-auth",
-        "/etc/pam.d/password-auth"
-    ]
-    deny_modules = ["pam_tally2.so", "pam_faillock.so"]
+    file_path = "/etc/security/user"
+    lockout_threshold_set = False
 
-    for file_path in files_to_check:
-        if os.path.exists(file_path):
-            deny_files_checked = True
-            with open(file_path, "r", encoding='utf-8') as file:  # 인코딩 명시
-                for line in file:
-                    line = line.strip()
-                    if not line.startswith("#") and "deny" in line:
-                        for deny_module in deny_modules:
-                            if deny_module in line:
-                                # Extract the deny value
-                                deny_value_matches = re.findall(r'deny=[0-9]+', line)
-                                if deny_value_matches:
-                                    deny_value = int(deny_value_matches[0].split('=')[1])
-                                    if deny_value <= 10:
-                                        account_lockout_threshold_set = True
-                                    else:
-                                        results["현황"].append(f"{file_path}에서 설정된 계정 잠금 임계값이 10회를 초과합니다.")
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding='utf-8') as file:
+            for line in file:
+                line = line.strip()
+                if not line.startswith("#") and "loginretries" in line:
+                    # Extract the loginretries value
+                    loginretries_value_matches = re.findall(r'loginretries\s*=\s*[0-9]+', line)
+                    if loginretries_value_matches:
+                        loginretries_value = int(loginretries_value_matches[0].split('=')[1].strip())
+                        if loginretries_value <= 10:
+                            lockout_threshold_set = True
+                        else:
+                            results["현황"].append(f"{file_path}에서 설정된 계정 잠금 임계값이 10회를 초과합니다.")
+                    break  # loginretries 설정을 찾으면 루프를 종료
 
-    if not deny_files_checked:
-        results["현황"].append("계정 잠금 임계값을 설정하는 파일을 찾을 수 없습니다.")
-        results["진단 결과"] = "취약"
-    elif not account_lockout_threshold_set:
-        results["현황"].append("적절한 계정 잠금 임계값 설정이 없습니다.")
+    if not lockout_threshold_set:
+        results["현황"].append(f"{file_path}에서 적절한 계정 잠금 임계값 설정이 없습니다.")
         results["진단 결과"] = "취약"
     else:
         results["현황"].append("계정 잠금 임계값이 적절히 설정되었습니다.")

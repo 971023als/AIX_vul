@@ -1,14 +1,15 @@
 #!/usr/bin/python3
 import os
+import subprocess
 import json
 
-def check_r_services_disabled():
+def check_r_services_disabled_aix():
     results = {
         "분류": "서비스 관리",
         "코드": "U-21",
         "위험도": "상",
-        "진단 항목": "r 계열 서비스 비활성화",
-        "진단 결과": None,  # 초기 상태 설정, 검사 후 결과에 따라 업데이트
+        "진단 항목": "r 계열 서비스 비활성화 (AIX)",
+        "진단 결과": "양호",  # Assume services are disabled until found otherwise
         "현황": [],
         "대응방안": "불필요한 r 계열 서비스 비활성화"
     }
@@ -35,17 +36,24 @@ def check_r_services_disabled():
                 if r_command in inetd_contents:
                     vulnerable_services.append(r_command)
 
+    for service in r_services:
+        try:
+            src_status = subprocess.run(['lssrc', '-s', service], capture_output=True, text=True)
+            if 'active' in src_status.stdout.lower():
+                vulnerable_services.append(service)
+        except Exception as e:
+            results["현황"].append(f"{service} 서비스 상태 확인 중 오류: {str(e)}")
+    
     if vulnerable_services:
         results["진단 결과"] = "취약"
         results["현황"].append(f"불필요한 r 계열 서비스가 실행 중입니다: {', '.join(vulnerable_services)}")
     else:
-        results["진단 결과"] = "양호"
         results["현황"].append("모든 r 계열 서비스가 비활성화되어 있습니다.")
 
     return results
 
 def main():
-    results = check_r_services_disabled()
+    results = check_r_services_disabled_aix()
     print(json.dumps(results, ensure_ascii=False, indent=4))
 
 if __name__ == "__main__":

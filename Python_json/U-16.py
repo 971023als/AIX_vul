@@ -19,14 +19,18 @@ def check_dev_directory_for_non_device_files():
 
     for item in os.listdir(dev_directory):
         item_path = os.path.join(dev_directory, item)
-        if os.path.isfile(item_path):
-            mode = os.stat(item_path).st_mode
-            if not stat.S_ISCHR(mode) and not stat.S_ISBLK(mode):
-                non_device_files.append(item_path)
+        if os.path.isfile(item_path) and not os.path.islink(item_path):  # Exclude symbolic links
+            try:
+                mode = os.stat(item_path).st_mode
+                if not stat.S_ISCHR(mode) and not stat.S_ISBLK(mode):
+                    non_device_files.append(item_path)
+            except Exception as e:
+                results["현황"].append(f"Error accessing {item_path}: {str(e)}")
+                continue
 
     if non_device_files:
         results["진단 결과"] = "취약"
-        results["현황"].append(" $non_device_files 장치가 존재합니다")
+        results["현황"].extend(non_device_files)  # Append non-device files directly
     else:
         results["진단 결과"] = "양호"
         results["현황"].append("/dev 디렉터리에 존재하지 않는 device 파일이 없습니다.")

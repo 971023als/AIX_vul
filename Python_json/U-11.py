@@ -9,13 +9,14 @@ def check_syslog_file_permissions():
         "분류": "파일 및 디렉터리 관리",
         "코드": "U-11",
         "위험도": "상",
-        "진단 항목": "/etc/syslog.conf 파일 소유자 및 권한 설정",
+        "진단 항목": "syslog 설정 파일 소유자 및 권한",
         "진단 결과": "N/A",  # 파일 존재 여부에 따라 업데이트될 예정
         "현황": [],
-        "대응방안": "/etc/syslog.conf 파일의 소유자가 root(또는 bin, sys)이고, 권한이 640 이하인 경우"
+        "대응방안": "syslog 설정 파일의 소유자가 root(또는 bin, sys)이고, 권한이 640 이하인 경우"
     }
 
-    syslog_conf_files = ["/etc/rsyslog.conf", "/etc/syslog.conf", "/etc/syslog-ng.conf"]
+    # AIX에서 기본적으로 사용되는 syslog 설정 파일
+    syslog_conf_files = ["/etc/syslog.conf"]
     file_exists_count = 0
     compliant_files_count = 0
 

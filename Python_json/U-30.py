@@ -3,12 +3,12 @@ import subprocess
 import re
 import json
 
-def check_sendmail_version():
+def check_sendmail_version_aix():
     results = {
         "분류": "서비스 관리",
         "코드": "U-30",
         "위험도": "상",
-        "진단 항목": "Sendmail 버전 점검",
+        "진단 항목": "Sendmail 버전 점검 (AIX)",
         "진단 결과": None,
         "현황": [],
         "대응방안": "Sendmail 버전을 최신 버전으로 유지"
@@ -16,18 +16,15 @@ def check_sendmail_version():
 
     latest_version = "8.17.1"  # 최신 Sendmail 버전 예시
 
-    # RPM-based systems에서 Sendmail 버전 확인
-    cmd_rpm = "rpm -qa | grep 'sendmail'"
-    process_rpm = subprocess.run(cmd_rpm, shell=True, text=True, capture_output=True)
+    # AIX에서 Sendmail 버전 확인
+    cmd = "lslpp -L | grep -i 'sendmail'"
+    process = subprocess.run(cmd, shell=True, text=True, capture_output=True)
 
-    if process_rpm.returncode == 0:
-        sendmail_version = re.search(r'sendmail-(\d+\.\d+\.\d+)', process_rpm.stdout)
-        if sendmail_version:
-            sendmail_version = sendmail_version.group(1)
-        else:
-            sendmail_version = ""
-    else:
-        sendmail_version = ""
+    sendmail_version = ""
+    if process.returncode == 0 and process.stdout:
+        sendmail_version_match = re.search(r'sendmail\s+(\d+\.\d+\.\d+)', process.stdout)
+        if sendmail_version_match:
+            sendmail_version = sendmail_version_match.group(1)
 
     # 버전 비교 및 결과 설정
     if sendmail_version:
@@ -44,8 +41,9 @@ def check_sendmail_version():
     return results
 
 def main():
-    results = check_sendmail_version()
+    results = check_sendmail_version_aix()
     print(json.dumps(results, ensure_ascii=False, indent=4))
 
 if __name__ == "__main__":
     main()
+
