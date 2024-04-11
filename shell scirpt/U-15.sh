@@ -1,50 +1,39 @@
-#!/usr/bin/python3
-import os
-import stat
-import json
+#!/bin/bash
 
-def find_world_writable_files(start_dir):
-    results = {
-        "분류": "파일 및 디렉터리 관리",
-        "코드": "U-15",
-        "위험도": "상",
-        "진단 항목": "world writable 파일 점검",
-        "진단 결과": "",
-        "현황": [],
-        "대응방안": "시스템 중요 파일에 world writable 파일이 존재하지 않거나, 존재 시 설정 이유를 확인"
-    }
+# 시작 디렉토리 설정
+start_dir="/tmp"
 
-     world_writable_files = []
+# 임시 파일 초기화
+temp_file=$(mktemp)
+> "$temp_file"
 
-    for foldername, subfolders, filenames in os.walk(start_dir):
-        for filename in filenames:
-            filepath = os.path.join(foldername, filename)
-            try:
-                # Skip symbolic links
-                if os.path.islink(filepath):
-                    continue
-                if os.path.isfile(filepath):  # Check it's a file, excluding symbolic links
-                    mode = os.stat(filepath).st_mode
-                    if mode & stat.S_IWOTH:  # Check world writable flag
-                        world_writable_files.append(filepath)
-            except Exception as e:
-                # Handle errors
-                continue
+# world writable 파일 찾기
+find "$start_dir" -type f ! -path "*/proc/*" \( ! -lname "*" \) -perm -2 -exec ls -l {} \; > "$temp_file"
 
-    if world_writable_files:
-        results["진단 결과"] = "취약"
-        results["현황"] = world_writable_files
-    else:
-        results["진단 결과"] = "양호"
-        results["현황"].append("world writable 설정이 되어있는 파일이 없습니다.")
+# 결과 JSON 생성
+if [ -s "$temp_file" ]; then
+    # 파일이 있을 경우
+    jq -R -s --arg dir "$start_dir" --argjson status true '{
+        분류: "파일 및 디렉터리 관리",
+        코드: "U-15",
+        위험도: "상",
+        진단항목: "world writable 파일 점검",
+        진단결과: "취약",
+        현황: (split("\n") | map(select(. != ""))),
+        대응방안: "시스템 중요 파일에 world writable 파일이 존재하지 않거나, 존재 시 설정 이유를 확인"
+    }' < "$temp_file"
+else
+    # 파일이 없을 경우
+    jq -n --arg dir "$start_dir" --argjson status false '{
+        분류: "파일 및 디렉터리 관리",
+        코드: "U-15",
+        위험도: "상",
+        진단항목: "world writable 파일 점검",
+        진단결과: "양호",
+        현황: ["world writable 설정이 되어있는 파일이 없습니다."],
+        대응방안: "시스템 중요 파일에 world writable 파일이 존재하지 않거나, 존재 시 설정 이유를 확인"
+    }'
+fi
 
-    return results
-
-def main():
-    # Example directory to check; replace with '/' for a full scan with caution
-    start_dir = '/tmp'  
-    results = find_world_writable_files(start_dir)
-    print(json.dumps(results, ensure_ascii=False, indent=4))
-
-if __name__ == "__main__":
-    main()
+# 임시 파일 정리
+rm -f "$temp_file"

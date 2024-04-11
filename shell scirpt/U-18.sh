@@ -1,53 +1,52 @@
-#!/usr/bin/python3
-import json
-import sys
+#!/bin/bash
 
-# Python 3.7 이상에서 표준 출력의 인코딩을 UTF-8로 설정
-if sys.stdout.encoding != 'UTF-8':
-    sys.stdout.reconfigure(encoding='utf-8')
+# AIX 시스템의 /etc/hosts.deny 와 /etc/hosts.allow 파일을 점검하여
+# 접근 제어 설정이 적절한지 확인하는 스크립트
 
-def check_aix_access_controls():
-    results = {
-        "분류": "네트워크 보안 설정",
-        "코드": "U-18",
-        "위험도": "상",
-        "진단 항목": "접속 IP 및 포트 제한 (AIX 특화)",
-        "진단 결과": "",
-        "현황": [],
-        "대응방안": "AIX IPSec 또는 방화벽 규칙을 사용하여 특정 호스트 접근 제한"
-    }
+hosts_deny_path="/etc/hosts.deny"
+hosts_allow_path="/etc/hosts.allow"
+result=""
+status=()
+diagnostic="접속 IP 및 포트 제한 (AIX 특화)"
 
-    hosts_deny_path = '/etc/hosts.deny'
-    hosts_allow_path = '/etc/hosts.allow'
+function check_file_exists_and_content {
+    local file_path=$1
+    local search_string=$2
 
-    hosts_deny_exists = check_file_exists_and_content(hosts_deny_path, 'ALL: ALL')
-    hosts_allow_exists = check_file_exists_and_content(hosts_allow_path, 'ALL: ALL')
+    if [ -f "$file_path" ]; then
+        if grep -qEi "$search_string" "$file_path" && ! grep -E "^#" "$file_path" | grep -qEi "$search_string"; then
+            return 0 # True, found and not commented out
+        fi
+    fi
+    return 1 # False, not found or file doesn't exist
+}
 
-    if not hosts_deny_exists:
-        results["진단 결과"] = "취약"
-        results["현황"].append(f"{hosts_deny_path} 파일에 'ALL: ALL' 설정이 없거나 파일이 없습니다.")
-    elif hosts_allow_exists:
-        results["진단 결과"] = "취약"
-        results["현황"].append(f"{hosts_allow_path} 파일에 'ALL: ALL' 설정이 있습니다.")
-    else:
-        results["진단 결과"] = "양호"
-        results["현황"].append("적절한 IP 및 포트 제한 설정이 확인되었습니다.")
+# /etc/hosts.deny 파일 검증
+if ! check_file_exists_and_content "$hosts_deny_path" "ALL: ALL"; then
+    result="취약"
+    status+=("$hosts_deny_path 파일에 'ALL: ALL' 설정이 없거나 파일이 없습니다.")
+else
+    # /etc/hosts.allow 파일 검증
+    if check_file_exists_and_content "$hosts_allow_path" "ALL: ALL"; then
+        result="취약"
+        status+=("$hosts_allow_path 파일에 'ALL: ALL' 설정이 있습니다.")
+    else
+        result="양호"
+        status+=("적절한 IP 및 포트 제한 설정이 확인되었습니다.")
+    fi
+fi
 
-    return results
-
-def check_file_exists_and_content(file_path, search_string):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            for line in file:
-                if search_string.lower() in line.lower() and not line.strip().startswith('#'):
-                    return True
-    except FileNotFoundError:
-        pass
-    return False
-
-def main():
-    results = check_access_control_files()
-    print(json.dumps(results, ensure_ascii=False, indent=4))
-
-if __name__ == "__main__":
-    main()
+# 결과를 JSON 형태로 출력
+echo "{"
+echo "    \"분류\": \"네트워크 보안 설정\","
+echo "    \"코드\": \"U-18\","
+echo "    \"위험도\": \"상\","
+echo "    \"진단 항목\": \"$diagnostic\","
+echo "    \"진단 결과\": \"$result\","
+echo "    \"현황\": ["
+for ((i=0; i<${#status[@]}; i++)); do
+    echo "        \"${status[$i]}\"$(if [[ $i -lt $((${#status[@]} - 1)) ]]; then echo ","; fi)"
+done
+echo "    ],"
+echo "    \"대응방안\": \"AIX IPSec 또는 방화벽 규칙을 사용하여 특정 호스트 접근 제한\""
+echo "}"

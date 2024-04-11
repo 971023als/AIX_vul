@@ -1,45 +1,43 @@
-#!/usr/bin/python3
-import os
-import stat
-import json
+#!/bin/bash
 
-def check_dev_directory_for_non_device_files():
-    results = {
-        "분류": "파일 및 디렉터리 관리",
-        "코드": "U-16",
-        "위험도": "상",
-        "진단 항목": "/dev에 존재하지 않는 device 파일 점검",
-        "진단 결과": "",  # 초기 상태를 설정하지 않음
-        "현황": [],
-        "대응방안": "/dev에 대한 파일 점검 후 존재하지 않은 device 파일을 제거한 경우"
-    }
+# /dev 디렉터리를 점검하여 적절하지 않은 디바이스 파일이 아닌 항목을 찾는 쉘 스크립트
 
-    dev_directory = '/dev'
-    non_device_files = []
+DEV_DIRECTORY="/dev"
+NON_DEVICE_FILES=()
+RESULT=""
+STATUS=""
 
-    for item in os.listdir(dev_directory):
-        item_path = os.path.join(dev_directory, item)
-        if os.path.isfile(item_path) and not os.path.islink(item_path):  # Exclude symbolic links
-            try:
-                mode = os.stat(item_path).st_mode
-                if not stat.S_ISCHR(mode) and not stat.S_ISBLK(mode):
-                    non_device_files.append(item_path)
-            except Exception as e:
-                results["현황"].append(f"Error accessing {item_path}: {str(e)}")
-                continue
+# /dev 내의 파일을 순회하며 체크
+for ITEM in $(ls $DEV_DIRECTORY); do
+    ITEM_PATH="${DEV_DIRECTORY}/${ITEM}"
+    if [ -f "$ITEM_PATH" ] && [ ! -L "$ITEM_PATH" ]; then  # 심볼릭 링크 제외
+        if [ ! -c "$ITEM_PATH" ] && [ ! -b "$ITEM_PATH" ]; then  # 캐릭터 및 블록 디바이스가 아닌 경우
+            NON_DEVICE_FILES+=("$ITEM_PATH")
+        fi
+    fi
+done
 
-    if non_device_files:
-        results["진단 결과"] = "취약"
-        results["현황"].extend(non_device_files)  # Append non-device files directly
-    else:
-        results["진단 결과"] = "양호"
-        results["현황"].append("/dev 디렉터리에 존재하지 않는 device 파일이 없습니다.")
+# 진단 결과 설정
+if [ ${#NON_DEVICE_FILES[@]} -gt 0 ]; then
+    RESULT="취약"
+    STATUS=$(printf ",%s" "${NON_DEVICE_FILES[@]}")
+    STATUS=${STATUS:1}  # 앞에 붙은 콤마 제거
+else
+    RESULT="양호"
+    STATUS="/dev 디렉터리에 존재하지 않는 device 파일이 없습니다."
+fi
 
-    return results
-
-def main():
-    results = check_dev_directory_for_non_device_files()
-    print(json.dumps(results, ensure_ascii=False, indent=4))
-
-if __name__ == "__main__":
-    main()
+# JSON 형태로 결과 출력
+cat <<EOF
+{
+    "분류": "파일 및 디렉터리 관리",
+    "코드": "U-16",
+    "위험도": "상",
+    "진단 항목": "/dev에 존재하지 않는 device 파일 점검",
+    "진단 결과": "$RESULT",
+    "현황": [
+        "$STATUS"
+    ],
+    "대응방안": "/dev에 대한 파일 점검 후 존재하지 않은 device 파일을 제거한 경우"
+}
+EOF
