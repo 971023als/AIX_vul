@@ -14,35 +14,31 @@ def check_unnecessary_web_files_removal():
         "대응방안": "기본으로 생성되는 불필요한 파일 및 디렉터리 제거"
     }
 
-    webconf_files = [".htaccess", "httpd.conf", "apache2.conf"]
-    serverroot_directories = []
+    # Example locations for IBM HTTP Server configuration and content
+    serverroot_directories = [
+        "/usr/IBM/HTTPServer/htdocs",  # Adjust as necessary
+    ]
 
-    for conf_file in webconf_files:
-        find_command = f"find / -name {conf_file} -type f 2>/dev/null"
-        try:
-            find_output = subprocess.check_output(find_command, shell=True, text=True).strip().split('\n')
-            for file_path in find_output:
-                if file_path:
-                    with open(file_path, 'r') as file:
-                        for line in file:
-                            if 'ServerRoot' in line and not line.strip().startswith('#'):
-                                serverroot = line.split()[1].strip('"')
-                                if serverroot not in serverroot_directories:
-                                    serverroot_directories.append(serverroot)
-        except subprocess.CalledProcessError:
-            continue  # find 명령어 실행 중 오류가 발생하면 다음 파일로 넘어감
+    # Common unnecessary file or directory names to check for removal
+    unnecessary_items = ["manual", "cgi-bin", "icons"]
 
     vulnerable = False
     for directory in serverroot_directories:
-        manual_path = os.path.join(directory, 'manual')
-        if os.path.exists(manual_path):
-            results["진단 결과"] = "취약"
-            results["현황"].append(f"Apache 홈 디렉터리 내 기본으로 생성되는 불필요한 파일 및 디렉터리가 제거되어 있지 않습니다: {manual_path}")
-            vulnerable = True
+        for item in unnecessary_items:
+            item_path = os.path.join(directory, item)
+            if os.path.exists(item_path):
+                results["진단 결과"] = "취약"
+                results["현황"].append(f"웹서비스 디렉터리 내 불필요한 파일 또는 디렉터리가 제거되어 있지 않습니다: {item_path}")
+                vulnerable = True
+                # If one unnecessary item is found, no need to check others
+                break
+        if vulnerable:
+            # If one serverroot directory is vulnerable, no need to check others
+            break
 
     if not vulnerable:
         results["진단 결과"] = "양호"
-        results["현황"].append("Apache 홈 디렉터리 내 기본으로 생성되는 불필요한 파일 및 디렉터리가 제거되어 있습니다.")
+        results["현황"].append("웹서비스 디렉터리 내 기본으로 생성되는 불필요한 파일 및 디렉터리가 제거되어 있습니다.")
 
     return results
 

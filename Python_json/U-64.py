@@ -14,34 +14,34 @@ def check_ftp_root_access_restriction():
         "대응방안": "FTP 서비스가 활성화된 경우 root 계정 접속을 차단"
     }
 
+    # AIX-specific paths for FTP user list files
     ftpusers_files = [
-        "/etc/ftpusers", "/etc/ftpd/ftpusers", "/etc/proftpd.conf",
-        "/etc/vsftp/ftpusers", "/etc/vsftp/user_list", "/etc/vsftpd.ftpusers",
-        "/etc/vsftpd.user_list"
+        "/etc/ftpusers",  # Standard location
+        # Additional locations depending on the FTP server used (if custom FTP servers are installed)
     ]
 
-    # Check for running FTP services
-    ftp_running = subprocess.run(['ps', '-ef'], stdout=subprocess.PIPE, text=True).stdout
-    if 'ftp' not in ftp_running and 'vsftpd' not in ftp_running and 'proftp' not in ftp_running:
-        results["현황"].append("FTP 서비스가 비활성화 되어 있습니다.")
+    # AIX uses inetd for FTP by default; check inetd.conf for FTP service
+    ftp_service_active = False
+    if os.path.exists("/etc/inetd.conf"):
+        with open("/etc/inetd.conf", 'r') as inetd_conf:
+            for line in inetd_conf:
+                if "ftp" in line and not line.strip().startswith("#"):
+                    ftp_service_active = True
+                    break
+
+    if not ftp_service_active:
+        results["현황"].append("FTP 서비스가 inetd를 통해 비활성화되어 있습니다.")
         results["진단 결과"] = "양호"
-        return results  # No further checks needed if FTP services are not running
+        return results
 
-    root_access_restricted = False  # Assume root access is not restricted
+    root_access_restricted = False
 
-    # Check ftpusers files
     for ftpusers_file in ftpusers_files:
         if os.path.exists(ftpusers_file):
             with open(ftpusers_file, 'r') as file:
-                file_content = file.read()
-                # For proftpd.conf, check for 'RootLogin on'
-                if 'proftpd.conf' in ftpusers_file and 'RootLogin on' in file_content:
-                    results["진단 결과"] = "취약"
-                    results["현황"].append(f"{ftpusers_file} 파일에 'RootLogin on' 설정이 있습니다.")
-                    return results
-                # For other ftpusers files, check for presence of 'root'
-                elif 'root' in file_content:
-                    root_access_restricted = True  # Found root in at least one config, assuming restriction is in place
+                if 'root' in file.read():
+                    root_access_restricted = True
+                    break
 
     if root_access_restricted:
         results["진단 결과"] = "양호"

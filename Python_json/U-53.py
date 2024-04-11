@@ -1,45 +1,63 @@
 #!/usr/bin/python3
+#!/usr/bin/python3
 import os
 import json
+import glob
 
-def check_user_shell():
+def check_session_timeout():
     results = {
         "분류": "계정관리",
-        "코드": "U-53",
+        "코드": "U-54",
         "위험도": "하",
-        "진단 항목": "사용자 shell 점검",
+        "진단 항목": "Session Timeout 설정",
         "진단 결과": "양호",  # Assume "Good" until proven otherwise
         "현황": [],
-        "대응방안": "로그인이 필요하지 않은 계정에 /bin/false 또는 /sbin/nologin 쉘 부여"
+        "대응방안": "Session Timeout을 600초(10분) 이하로 설정"
     }
 
-    unnecessary_accounts = [
-        "daemon", "bin", "sys", "adm", "listen", "nobody", "nobody4",
-        "noaccess", "diag", "operator", "gopher", "games", "ftp", "apache",
-        "httpd", "www-data", "mysql", "mariadb", "postgres", "mail", "postfix",
-        "news", "lp", "uucp", "nuucp"
-    ]
-    
-    if os.path.isfile("/etc/passwd"):
-        with open("/etc/passwd", 'r') as file:
-            passwd_contents = file.readlines()
-            for line in passwd_contents:
-                fields = line.strip().split(":")
-                username, shell = fields[0], fields[-1]
-                if username in unnecessary_accounts:
-                    if shell not in ["/bin/false", "/sbin/nologin"]:
-                        results["진단 결과"] = "취약"
-                        results["현황"].append(f"계정 {username}에 /bin/false 또는 /sbin/nologin 쉘이 부여되지 않았습니다.")
-                        break
-    else:
+    # Files to check for session timeout settings
+    check_files = ["/etc/profile", "/etc/csh.login", "/etc/csh.cshrc"]
+    check_files += glob.glob("/home/*/.profile")
+
+    file_exists_count = 0
+    no_tmout_setting_file = 0
+
+    for file_path in check_files:
+        if os.path.isfile(file_path):
+            file_exists_count += 1
+            with open(file_path, 'r') as file:
+                contents = file.read()
+                if "TMOUT" in contents or "autologout" in contents:
+                    # Extract TMOUT or autologout values and check them
+                    for line in contents.splitlines():
+                        if line.strip().startswith("TMOUT") or "autologout" in line:
+                            setting_value = line.split("=")[-1].strip()
+                            try:
+                                if int(setting_value) > 600 and "TMOUT" in line:
+                                    results["진단 결과"] = "취약"
+                                    results["현황"].append(f"{file_path} 파일에 세션 타임아웃이 600초 이하로 설정되지 않았습니다.")
+                                    break
+                                elif int(setting_value) > 10 and "autologout" in line:
+                                    results["진단 결과"] = "취약"
+                                    results["현황"].append(f"{file_path} 파일에 세션 타임아웃이 10분 이하로 설정되지 않았습니다.")
+                                    break
+                            except ValueError:
+                                continue  # Skip lines where the value is not an integer
+                else:
+                    no_tmout_setting_file += 1
+
+    if file_exists_count == 0:
         results["진단 결과"] = "취약"
-        results["현황"].append("/etc/passwd 파일이 없습니다.")
+        results["현황"].append("세션 타임아웃을 설정하는 파일이 없습니다.")
+    elif file_exists_count == no_tmout_setting_file:
+        results["진단 결과"] = "취약"
+        results["현황"].append("세션 타임아웃을 설정한 파일이 없습니다.")
 
     return results
 
 def main():
-    user_shell_check_results = check_user_shell()
-    print(json.dumps(user_shell_check_results, ensure_ascii=False, indent=4))
+    session_timeout_check_results = check_session_timeout()
+    print(json.dumps(session_timeout_check_results, ensure_ascii=False, indent=4))
 
 if __name__ == "__main__":
     main()

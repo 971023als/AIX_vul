@@ -2,6 +2,7 @@
 import json
 
 def check_for_non_root_uid_zero():
+    # This script checks for any non-root users with UID '0' on Unix-like systems, including AIX.
     results = {
         "분류": "계정관리",
         "코드": "U-44",
@@ -31,3 +32,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

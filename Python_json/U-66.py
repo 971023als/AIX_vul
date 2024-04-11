@@ -13,14 +13,20 @@ def check_snmp_service_usage():
         "대응방안": "SNMP 서비스 사용을 필요로 하지 않는 경우, 서비스를 비활성화"
     }
 
-    # Execute a system command to check for SNMP service
-    process = subprocess.run(['ps', '-ef'], stdout=subprocess.PIPE, text=True)
-    if 'snmp' in process.stdout.lower():
+    # Check for SNMP service using ps
+    ps_process = subprocess.run(['ps', '-ef'], stdout=subprocess.PIPE, text=True)
+    if 'snmp' in ps_process.stdout.lower():
         results["진단 결과"] = "취약"
-        results["현황"] = "SNMP 서비스를 사용하고 있습니다."
+        results["현황"] = "SNMP 서비스를 사용하고 있습니다 (ps 검사)."
     else:
-        results["진단 결과"] = "양호"
-        results["현황"] = "SNMP 서비스를 사용하지 않고 있습니다."
+        # Additional check using lssrc on AIX systems
+        lssrc_process = subprocess.run(['lssrc', '-s', 'snmpd'], stdout=subprocess.PIPE, text=True)
+        if 'active' in lssrc_process.stdout.lower():
+            results["진단 결과"] = "취약"
+            results["현황"] = "SNMP 서비스를 사용하고 있습니다 (lssrc 검사)."
+        else:
+            results["진단 결과"] = "양호"
+            results["현황"] = "SNMP 서비스를 사용하지 않고 있습니다."
 
     return results
 
