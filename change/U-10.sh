@@ -1,34 +1,38 @@
 #!/bin/bash
 
-# 파일 및 디렉터리 권한 설정 함수
-set_ownership_and_permissions() {
-    local target=$1
-    if [ -e "$target" ]; then
-        # 소유자를 root로 변경
-        chown root "$target"
-        
-        # 파일일 경우 권한을 600으로, 디렉터리일 경우 내부 파일들 권한을 600으로 설정
-        if [ -f "$target" ]; then
-            chmod 600 "$target"
-        elif [ -d "$target" ]; then
-            chmod 600 "$target"/*
-        fi
-
-        echo "$target 의 소유자와 권한이 적절히 설정되었습니다."
+# 파일 소유자 및 권한 설정 함수
+set_file_ownership_and_permissions() {
+    file_path=$1
+    if [ -f "$file_path" ]; then
+        # 소유자를 root로 설정
+        chown root:root "$file_path"
+        # 권한을 600으로 설정
+        chmod 600 "$file_path"
+        echo "U-10 $file_path 파일의 소유자와 권한이 조정되었습니다."
     else
-        echo "$target 은(는) 존재하지 않습니다."
+        echo "U-10 $file_path 파일이 존재하지 않습니다."
     fi
 }
 
-# /etc/(x)inetd.conf 파일과 /etc/xinetd.d 디렉터리 내 파일 소유자 및 권한 설정
-files_and_directories_to_update=(
-    '/etc/inetd.conf'
-    '/etc/xinetd.conf'
-    '/etc/xinetd.d'
-)
+# 디렉터리 내 파일 소유자 및 권한 설정 함수
+set_directory_files_ownership_and_permissions() {
+    directory_path=$1
+    if [ -d "$directory_path" ]; then
+        for file_path in $directory_path/*; do
+            if [ -f "$file_path" ]; then
+                # 소유자를 root로 설정
+                chown root:root "$file_path"
+                # 권한을 600으로 설정
+                chmod 600 "$file_path"
+                echo "U-10 $file_path 파일의 소유자와 권한이 조정되었습니다."
+            fi
+        done
+    else
+        echo "U-10 $directory_path 디렉터리가 존재하지 않습니다."
+    fi
+}
 
-for item in "${files_and_directories_to_update[@]}"; do
-    set_ownership_and_permissions "$item"
-done
-
-echo "모든 지정된 파일 및 디렉터리의 소유자와 권한이 업데이트 되었습니다."
+# /etc/inetd.conf, /etc/xinetd.conf 파일과 /etc/xinetd.d 디렉터리 검사 및 조정
+set_file_ownership_and_permissions "/etc/inetd.conf"
+set_file_ownership_and_permissions "/etc/xinetd.conf"
+set_directory_files_ownership_and_permissions "/etc/xinetd.d"

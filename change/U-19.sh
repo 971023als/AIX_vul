@@ -1,33 +1,23 @@
 #!/bin/bash
 
-# Finger 서비스 비활성화 조치
-# /etc/inetd.conf 또는 /etc/xinetd.d/ 내 Finger 서비스 설정 비활성화
-
-# inetd를 사용하는 경우
-if [ -f "/etc/inetd.conf" ]; then
-    sed -i '/finger/s/^/#/' /etc/inetd.conf
-    echo "/etc/inetd.conf에서 Finger 서비스 비활성화됨."
+# Finger 서비스 비활성화 (xinetd를 통해 제공되는 경우)
+if [ -f /etc/xinetd.d/finger ]; then
+    echo "disabling" > /etc/xinetd.d/finger
+    echo "Finger 서비스를 xinetd를 통해 비활성화합니다."
 fi
 
-# xinetd를 사용하는 경우
-if [ -d "/etc/xinetd.d" ]; then
-    for service_file in /etc/xinetd.d/*finger*; do
-        if [ -f "$service_file" ]; then
-            sed -i 's/disable\s*=\s*no/disable = yes/' "$service_file"
-            echo "$service_file에서 Finger 서비스 비활성화됨."
-        fi
-    done
+# systemd를 사용하는 시스템에서 Finger 서비스 비활성화
+if systemctl is-enabled finger.socket &> /dev/null; then
+    systemctl stop finger.socket
+    systemctl disable finger.socket
+    echo "Finger 서비스를 systemd를 통해 비활성화하고, 실행 중인 소켓을 중지합니다."
 fi
 
-# 서비스 재시작 또는 systemctl 사용하여 서비스 비활성화
-if systemctl is-active --quiet finger; then
-    systemctl stop finger
-    systemctl disable finger
-    echo "systemctl을 사용하여 Finger 서비스 비활성화 완료."
-elif service --status-all | grep -Fq 'finger'; then
-    service finger stop
-    update-rc.d finger disable
-    echo "service 명령어를 사용하여 Finger 서비스 비활성화 완료."
+# Finger 프로세스 중지
+pgrep -f finger &> /dev/null
+if [ $? -eq 0 ]; then
+    pkill -f finger
+    echo "실행 중인 Finger 프로세스를 중지합니다."
 fi
 
-echo "Finger 서비스 비활성화 조치가 완료되었습니다."
+echo "U-19 Finger 서비스 비활성화 작업이 완료되었습니다."

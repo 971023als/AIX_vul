@@ -1,46 +1,42 @@
 #!/bin/bash
 
-# 결과를 저장할 JSON 파일 초기화
-results_file="results.json"
-echo '{
-    "분류": "서비스 관리",
-    "코드": "U-41",
-    "위험도": "상",
-    "진단 항목": "웹서비스 영역의 분리",
-    "진단 결과": null,
-    "현황": [],
-    "대응방안": "DocumentRoot 별도 디렉터리 지정"
-}' > $results_file
-
-webconf_files=(".htaccess" "httpd.conf" "apache2.conf")
-document_root_set=false
-vulnerable=false
-
-for conf_file in "${webconf_files[@]}"; do
-    find_output=$(find / -name $conf_file -type f 2>/dev/null)
-    for file_path in $find_output; do
-        if [[ -n "$file_path" ]]; then
-            while IFS= read -r line; do
-                if [[ "$line" == DocumentRoot* ]] && [[ ! "$line" =~ ^# ]]; then
-                    document_root_set=true
-                    path=$(echo $line | awk '{print $2}' | tr -d '"')
-                    if [[ "$path" == "/usr/local/apache/htdocs" ]] || [[ "$path" == "/usr/local/apache2/htdocs" ]] || [[ "$path" == "/var/www/html" ]]; then
-                        vulnerable=true
-                        break 2
-                    fi
-                fi
-            done < "$file_path"
+# Apache 서버의 DocumentRoot 변경
+update_apache_documentroot() {
+    local new_root="/var/www/new_root_directory"  # 새로운 DocumentRoot 경로
+    local apache_conf_files=("/etc/httpd/conf/httpd.conf" "/etc/apache2/apache2.conf")
+    
+    for conf_file in "${apache_conf_files[@]}"; do
+        if [ -f "$conf_file" ]; then
+            echo "Updating DocumentRoot in $conf_file to $new_root..."
+            sed -i "s|DocumentRoot \"/var/www/html\"|DocumentRoot \"$new_root\"|g" "$conf_file"
+            sed -i "s|<Directory \"/var/www/html\">|<Directory \"$new_root\">|g" "$conf_file"
+            echo "Restarting Apache to apply changes..."
+            systemctl restart apache2 || systemctl restart httpd
         fi
     done
-done
+}
 
-if [ "$document_root_set" = false ]; then
-    jq '.진단 결과 = "취약" | .현황 += ["Apache DocumentRoot가 설정되지 않았습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-elif [ "$vulnerable" = true ]; then
-    jq '.진단 결과 = "취약" | .현황 += ["Apache DocumentRoot를 기본 디렉터리로 설정했습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-else
-    jq '.진단 결과 = "양호" | .현황 += ["Apache DocumentRoot가 별도의 디렉터리로 적절히 설정되어 있습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-fi
+# Nginx 서버의 root 변경
+update_nginx_root() {
+    local new_root="/var/www/new_root_directory"  # 새로운 root 경로
+    local nginx_conf="/etc/nginx/nginx.conf"
+    
+    if [ -f "$nginx_conf" ]; then
+        echo "Updating root in $nginx_conf to $new_root..."
+        sed -i "s|root /usr/share/nginx/html;|root $new_root;|g" "$nginx_conf"
+        echo "Restarting Nginx to apply changes..."
+        systemctl restart nginx
+    fi
+}
 
-# 결과 출력
-cat $results_file
+# 기타 웹 서버에 대한 변경이 필요한 경우 여기에 추가하세요.
+
+main() {
+    mkdir -p /var/www/new_root_directory  # 새 DocumentRoot 디렉터리 생성
+    update_apache_documentroot
+    update_nginx_root
+    # 추가 웹 서버에 대한 호출
+    echo "U-41 Web server document root updates are complete."
+}
+
+main

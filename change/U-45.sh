@@ -1,19 +1,27 @@
 #!/bin/bash
 
-# /etc/pam.d/su 파일 검사
-pam_su_path="/etc/pam.d/su"
+# /etc/pam.d/su 파일이 있는지 확인하고, pam_wheel.so 모듈 설정을 수정함
+configure_su_restriction() {
+    pam_su_path="/etc/pam.d/su"
 
-# 파일 존재 여부 및 설정 검사
-if [ -f "$pam_su_path" ]; then
-    # pam_wheel.so 모듈의 적절한 설정 확인
-    if grep -q "auth\s*required\s*pam_wheel.so\s*use_uid" "$pam_su_path"; then
-        jq '.진단 결과 = "양호" | .현황 += ["su 명령어 사용이 특정 그룹으로 제한되어 있습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+    if [ -f "$pam_su_path" ]; then
+        # pam_wheel.so 설정이 이미 존재하는지 확인
+        if ! grep -q "auth\s*required\s*pam_wheel.so\s*use_uid" "$pam_su_path"; then
+            echo "pam_wheel.so 설정을 추가하여 su 사용을 wheel 그룹으로 제한합니다."
+            # pam_wheel.so 설정을 추가
+            echo "auth required pam_wheel.so use_uid" >> "$pam_su_path"
+        else
+            echo "su 사용이 이미 wheel 그룹으로 제한되어 있습니다."
+        fi
     else
-        jq '.진단 결과 = "취약" | .현황 += ["/etc/pam.d/su 파일에 pam_wheel.so 모듈 설정이 적절히 구성되지 않았습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+        echo "/etc/pam.d/su 파일이 존재하지 않습니다."
     fi
-else
-    jq '.진단 결과 = "취약" | .현황 += ["/etc/pam.d/su 파일이 존재하지 않습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-fi
+}
 
-# 결과 출력
-cat $results_file
+main() {
+    echo "root 계정 su 제한 설정 시작..."
+    configure_su_restriction
+    echo "U-45 설정 완료."
+}
+
+main

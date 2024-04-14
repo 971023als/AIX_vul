@@ -1,15 +1,15 @@
 #!/bin/bash
 
-dev_directory='/dev'
+# /dev 디렉터리 설정
+dev_directory="/dev"
 
-# /dev 디렉터리 검사 및 캐릭터 또는 블록 디바이스가 아닌 파일 제거
-find "$dev_directory" -type f -exec sh -c '
-    for item do
-        if [ ! -c "$item" ] && [ ! -b "$item" ]; then
-            echo "제거됨: $item"
-            rm -f "$item"
-        fi
-    done
-' sh {} +
+# /dev 내의 비 장치 파일 찾기 및 제거
+echo "비 장치 파일을 검색하고 있습니다..."
+find "$dev_directory" -type f | while read -r file; do
+    if [[ ! -c "$file" && ! -b "$file" ]]; then  # 문자 장치 파일(c) 또는 블록 장치 파일(b)이 아닌 경우
+        echo "비 장치 파일 제거: $file"
+        rm -f "$file"
+    fi
+done
 
-echo "/dev 디렉터리 내 존재하지 않는 device 파일의 제거가 완료되었습니다."
+echo "U-16 /dev 디렉터리 내의 비 장치 파일 제거 작업이 완료되었습니다."

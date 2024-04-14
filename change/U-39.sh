@@ -1,28 +1,47 @@
 #!/bin/bash
 
-# Apache 구성 파일 경로 설정
-apache_conf_files=("/etc/apache2/apache2.conf" "/etc/apache2/sites-available/*.conf" "/etc/httpd/conf/httpd.conf")
+# 웹 서버 구성 파일 및 필요한 수정사항 정의
+declare -A web_servers=(
+    ["Apache"]="/etc/apache2/apache2.conf /etc/httpd/conf/httpd.conf"
+    ["Nginx"]="/etc/nginx/nginx.conf"
+    # LiteSpeed, Caddy, Tomcat 등 추가 서버 구성 파일 경로
+)
 
-# 심볼릭 링크 사용 제한 설정 함수
-restrict_sym_links() {
-    local conf_file=$1
-    if [ -f "$conf_file" ]; then
-        # 'Options FollowSymLinks' 설정이 있는지 확인하고, 있다면 '-FollowSymLinks'로 변경
-        if grep -q "Options FollowSymLinks" "$conf_file"; then
-            sed -i 's/Options FollowSymLinks/Options -FollowSymLinks/g' "$conf_file"
-            echo "$conf_file 파일에서 심볼릭 링크 사용이 제한되었습니다." | jq --raw-input --slurp '.현황 += [.]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-        else
-            echo "$conf_file 파일에 이미 심볼릭 링크 사용이 제한되어 있습니다." | jq --raw-input --slurp '.현황 += [.]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+# Apache에 대한 심볼릭 링크 사용 금지 설정
+restrict_apache() {
+    for conf_file in ${web_servers["Apache"]}; do
+        if [ -f "$conf_file" ]; then
+            echo "Updating $conf_file to restrict symbolic link usage..."
+            # 'FollowSymLinks'를 '-FollowSymLinks'로 변경합니다.
+            sed -i 's/Options Indexes FollowSymLinks/Options Indexes -FollowSymLinks/' "$conf_file"
+            # Apache 서버를 재시작합니다.
+            systemctl restart apache2 || systemctl restart httpd
         fi
-    else
-        echo "$conf_file 파일을 찾을 수 없습니다." | jq --raw-input --slurp '.현황 += [.]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-    fi
+    done
 }
 
-# 모든 지정된 Apache 구성 파일 업데이트
-for conf_file in "${apache_conf_files[@]}"; do
-    restrict_sym_links "$conf_file"
-done
+# Nginx에 대한 심볼릭 링크 사용 금지 설정
+restrict_nginx() {
+    for conf_file in ${web_servers["Nginx"]}; do
+        if [ -f "$conf_file" ]; then
+            echo "Updating $conf_file to restrict symbolic link usage..."
+            # 'disable_symlinks' 지시어를 추가합니다.
+            if ! grep -q "disable_symlinks" "$conf_file"; then
+                sed -i '/server_name/a \    disable_symlinks from=$document_root;' "$conf_file"
+                # Nginx 서버를 재시작합니다.
+                systemctl restart nginx
+            fi
+        fi
+    done
+}
 
-# 결과 출력
-cat $results_file
+# 메인 실행 함수
+main() {
+    echo "Restricting symbolic link usage for web servers..."
+    restrict_apache
+    restrict_nginx
+    # 추가 웹 서버에 대한 함수 호출
+    echo "U-39 Symbolic link usage restriction process completed."
+}
+
+main

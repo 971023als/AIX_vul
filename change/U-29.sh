@@ -1,28 +1,26 @@
 #!/bin/bash
 
-# 서비스 비활성화 함수
-disable_service() {
-    local service_name=$1
-    local service_path="/etc/xinetd.d/$service_name"
-    local inetd_conf="/etc/inetd.conf"
-
-    # /etc/xinetd.d 디렉터리 내의 서비스 파일이 있는 경우
-    if [ -f "$service_path" ]; then
-        sed -i 's/disable\s*=\s*no/disable = yes/' "$service_path"
-        echo "$service_name 서비스가 $service_path 파일에서 비활성화되었습니다."
-    fi
-
-    # /etc/inetd.conf 파일 내의 서비스가 있는 경우
-    if grep -E "^$service_name\s" "$inetd_conf" &> /dev/null; then
-        sed -i "/^$service_name\s/s/^/#/" "$inetd_conf"
-        echo "$service_name 서비스가 $inetd_conf 파일에서 비활성화되었습니다."
-    fi
-}
-
 # tftp, talk, ntalk 서비스 비활성화
 services=("tftp" "talk" "ntalk")
+
+echo "tftp, talk, ntalk 서비스를 확인하고 있습니다..."
+
+# /etc/xinetd.d 디렉터리 내의 서비스 파일 수정
 for service in "${services[@]}"; do
-    disable_service "$service"
+    if [ -f "/etc/xinetd.d/$service" ]; then
+        echo "$service 서비스를 비활성화합니다."
+        sed -i '/disable[ ]*=[ ]*no/c\disable         = yes' "/etc/xinetd.d/$service"
+    fi
 done
 
-echo "tftp, talk, ntalk 서비스가 모두 비활성화되었습니다."
+# /etc/inetd.conf 파일 내의 서비스 주석 처리
+if [ -f "/etc/inetd.conf" ]; then
+    for service in "${services[@]}"; do
+        if grep -q "^$service" "/etc/inetd.conf"; then
+            echo "$service 서비스를 /etc/inetd.conf에서 주석 처리합니다."
+            sed -i "/^$service/s/^/#/" "/etc/inetd.conf"
+        fi
+    done
+fi
+
+echo "U-29 tftp, talk, ntalk 서비스 비활성화 작업이 완료되었습니다."

@@ -1,45 +1,43 @@
 #!/bin/bash
 
-# Apache 구성 파일 경로 설정
-apache_conf_files=(
-    "/etc/apache2/apache2.conf"
-    "/etc/apache2/conf-enabled/*.conf"
-    "/etc/httpd/conf/httpd.conf"
+# 웹 서버 별 설정 파일 경로와 상위 디렉토리 접근 제한 설정
+declare -A web_servers=(
+    ["Apache"]="/etc/apache2/apache2.conf /etc/httpd/conf/httpd.conf"
+    ["Nginx"]="/etc/nginx/nginx.conf"
+    ["LiteSpeed"]="/usr/local/lsws/conf/httpd_config.conf"
+    ["Microsoft-IIS"]=""  # IIS 설정은 Windows 환경에서 GUI 또는 PowerShell을 통해 관리됩니다.
+    ["Node.js"]=""  # Node.js는 중간웨어를 통해 접근 제한을 구성합니다.
+    ["Envoy"]="/etc/envoy/envoy.yaml"
+    ["Caddy"]="/etc/caddy/Caddyfile"
+    ["Tomcat"]="/etc/tomcat/web.xml"
 )
 
-# 상위 디렉터리 접근 금지 설정 함수
-restrict_directory_access() {
-    local conf_file=$1
-    if [ -f "$conf_file" ]; then
-        # AllowOverride 설정 확인 및 업데이트
-        if grep -q "AllowOverride None" "$conf_file"; then
-            echo "$conf_file 파일에 이미 상위 디렉터리 접근 제한 설정이 적용되어 있습니다."
-        else
-            echo "<Directory />" >> "$conf_file"
-            echo "    AllowOverride None" >> "$conf_file"
-            echo "    Require all denied" >> "$conf_file"
-            echo "</Directory>" >> "$conf_file"
-            echo "$conf_file 파일에 상위 디렉터리 접근 제한 설정을 추가했습니다."
-        fi
-    else
-        echo "$conf_file 파일을 찾을 수 없습니다."
-    fi
-}
+# Apache와 Nginx 예시를 포함한 접근 제한 설정 예시
+restrictions=(
+    ["Apache"]="AllowOverride None"
+    ["Nginx"]="deny all;"
+)
 
-# 모든 지정된 Apache 구성 파일 업데이트
-for conf_file in "${apache_conf_files[@]}"; do
-    restrict_directory_access "$conf_file"
+# 각 웹 서버 설정 검사 및 업데이트
+for server in "${!web_servers[@]}"; do
+    echo "Checking $server configurations..."
+    IFS=' ' read -ra CONFIG_PATHS <<< "${web_servers[$server]}"
+    for config_path in "${CONFIG_PATHS[@]}"; do
+        if [ -f "$config_path" ]; then
+            echo "Found $config_path"
+            if ! grep -q "${restrictions[$server]}" "$config_path"; then
+                echo "Updating $config_path to restrict upper directory access..."
+                # 설정 업데이트 명령어 예시 (실제 환경에 맞게 수정 필요)
+                 echo "${restrictions[$server]}" >> "$config_path"
+                # 서비스 재시작 또는 리로드 명령어 예시 (실제 환경에 맞게 수정 필요)
+                 systemctl reload apache2 || systemctl reload nginx
+            else
+                echo "$config_path already restricts upper directory access."
+            fi
+        else
+            echo "$config_path not found."
+        fi
+    done
 done
 
-# Apache 서비스 재시작
-if systemctl is-active --quiet apache2; then
-    systemctl restart apache2
-    echo "Apache2 서비스가 재시작되었습니다."
-elif systemctl is-active --quiet httpd; then
-    systemctl restart httpd
-    echo "HTTPD 서비스가 재시작되었습니다."
-else
-    echo "Apache 서비스가 실행 중이지 않거나 인식되지 않습니다."
-fi
-
-echo "웹서비스 상위 디렉터리 접근 금지 설정이 완료되었습니다."
+echo "U-37 상위 디렉터리에 이동 제한 설정"

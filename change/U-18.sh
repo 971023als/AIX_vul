@@ -1,15 +1,23 @@
 #!/bin/bash
 
-# 사용자로부터 IP 주소와 포트 번호 입력 받기
-read -p "허용할 IP 주소를 입력하세요: " ip_address
-read -p "허용할 포트 번호를 입력하세요: " port_number
+# /etc/hosts.deny에 모든 접속을 기본적으로 거부하는 규칙 설정
+echo "ALL: ALL" > /etc/hosts.deny
+echo "/etc/hosts.deny 파일에 모든 접속을 거부하는 규칙을 설정했습니다."
 
-# /etc/hosts.allow 파일 경로
-hosts_allow_path="/etc/hosts.allow"
+# /etc/hosts.allow 파일에서 허용할 특정 호스트 설정 예시
+# 여기서는 실제로 특정 IP를 허용하는 규칙을 추가하지 않습니다.
+# 실제 환경에서는 아래의 예시처럼 필요한 규칙을 추가해야 합니다.
+# 예: echo "sshd: 192.168.0.1" >> /etc/hosts.allow
+# 이 스크립트는 예시를 제공하기 위한 것이므로, 실제 환경에 맞게 수정해 사용해야 합니다.
 
-# /etc/hosts.allow 파일에 접속 허용 설정 추가
-echo "sshd: $ip_address:$port_number" >> "$hosts_allow_path"
+# 기존 /etc/hosts.allow 파일 백업
+if [ -f "/etc/hosts.allow" ]; then
+    cp /etc/hosts.allow /etc/hosts.allow.backup
+    echo "/etc/hosts.allow 파일의 백업본을 생성했습니다."
+fi
 
-echo "$hosts_allow_path 파일에 $ip_address 주소에서 포트 $port_number 로의 접속을 허용하는 설정을 추가했습니다."
+# /etc/hosts.allow 파일 초기화 (선택적 조치)
+> /etc/hosts.allow
+echo "/etc/hosts.allow 파일을 초기화했습니다. 필요한 접속 허용 규칙을 추가해주세요."
 
-echo "접속 IP 및 포트 제한 설정이 완료되었습니다."
+echo "U-18 접속 IP 및 포트 제한 설정 조치가 완료되었습니다."

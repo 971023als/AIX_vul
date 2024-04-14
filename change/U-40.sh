@@ -1,32 +1,44 @@
 #!/bin/bash
 
-# 파일 업로드 최대 크기 설정 (예: 1048576 bytes = 1MB)
-max_upload_size="1048576"
+# 업로드 제한 사이즈 설정 (예: 10M)
+upload_limit="10M"
 
-# Apache 구성 파일 경로 설정
-apache_conf_files=("/etc/apache2/apache2.conf" "/etc/apache2/sites-available/*.conf" "/etc/httpd/conf/httpd.conf")
+# 웹 서버 구성 파일 경로 및 업로드 제한 설정 필요한 파일
+apache_config_files=("/etc/apache2/apache2.conf" "/etc/httpd/conf/httpd.conf")
+nginx_config_file="/etc/nginx/nginx.conf"
+# LiteSpeed, Microsoft-IIS, Node.js, Envoy, Caddy, Tomcat 등 추가 웹 서버 구성
 
-# 파일 업로드 및 다운로드 제한 설정 함수
-set_file_upload_download_limit() {
-    local conf_file=$1
-    if [ -f "$conf_file" ]; then
-        # LimitRequestBody 설정 확인 및 업데이트
-        if ! grep -q "LimitRequestBody" "$conf_file"; then
-            echo "<Directory \"/var/www/html\">" >> "$conf_file"
-            echo "    LimitRequestBody $max_upload_size" >> "$conf_file"
-            echo "</Directory>" >> "$conf_file"
-            echo "$conf_file 파일에 파일 업로드 제한 설정을 추가했습니다." | jq --raw-input --slurp '.현황 += [.]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-        else
-            echo "$conf_file 파일에 이미 파일 업로드 제한 설정이 적용되어 있습니다." | jq --raw-input --slurp '.현황 += [.]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+# Apache에 대한 업로드 제한 설정
+restrict_apache_upload() {
+    echo "Setting upload size limit for Apache..."
+    for conf_file in "${apache_config_files[@]}"; do
+        if [ -f "$conf_file" ]; then
+            echo "Updating $conf_file..."
+            sed -i "/<Directory \/var\/www\/>/,/<\/Directory>/ s/LimitRequestBody [0-9]\+/LimitRequestBody $(echo $upload_limit | sed 's/M/000000/')/" "$conf_file"
         fi
-    else
-        echo "$conf_file 파일을 찾을 수 없습니다." | jq --raw-input --slurp '.현황 += [.]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+    done
+}
+
+# Nginx에 대한 업로드 제한 설정
+restrict_nginx_upload() {
+    echo "Setting upload size limit for Nginx..."
+    if [ -f "$nginx_config_file" ]; then
+        echo "Updating $nginx_config_file..."
+        sed -i "s/client_max_body_size [0-9]*M;/client_max_body_size $upload_limit;/" "$nginx_config_file"
     fi
 }
 
-# 모든 지정된 Apache 구성 파일 업데이트
-for conf_file in "${apache_conf_files[@]}"; do
-    set_file_upload_download_limit "$conf_file"
-done
-# 결과 출력
-cat $results_file
+# 웹 서버 재시작 함수 (서비스명 확인 필요)
+restart_web_servers() {
+    systemctl restart apache2 || systemctl restart httpd
+    systemctl restart nginx
+    echo "U-40 Web servers restarted to apply changes."
+}
+
+main() {
+    restrict_apache_upload
+    restrict_nginx_upload
+    restart_web_servers
+}
+
+main

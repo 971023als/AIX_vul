@@ -1,14 +1,6 @@
 #!/bin/bash
 
-update_path_in_file() {
-    local file=$1
-    if [ -f "$file" ]; then
-        # PATH에서 '.' 제거
-        sed -i '/^PATH/s/:\.//g; /^PATH/s/\.:/:/g; /^PATH/s/\.$//g; /^PATH/s/^\.://g' "$file"
-        echo "$file 내의 PATH 환경변수에서 '.' 제거 완료"
-    fi
-}
-
+# 글로벌 환경 설정 파일
 global_files=(
     "/etc/profile"
     "/etc/.login"
@@ -17,28 +9,41 @@ global_files=(
     "/etc/environment"
 )
 
-user_files=(
-    ".profile"
-    ".cshrc"
-    ".login"
-    ".kshrc"
-    ".bash_profile"
-    ".bashrc"
-    ".bash_login"
-)
+# 수정 함수
+remove_dot_from_path() {
+    local file=$1
+    # PATH에서 '.' 제거
+    if grep -E 'PATH=.*(\.|::)' "$file" > /dev/null; then
+        echo "Modifying $file to remove '.' from PATH..."
+        # 'sed'를 사용하여 PATH 변수 내의 '.' 제거
+        sed -i -e 's/\b\.\b//g' -e 's/::/:/g' -e 's/:$//g' -e 's/^://g' "$file"
+    fi
+}
 
-# 글로벌 설정 파일 수정
+# 글로벌 설정 파일 검사 및 수정
 for file in "${global_files[@]}"; do
-    update_path_in_file "$file"
+    if [ -f "$file" ]; then
+        remove_dot_from_path "$file"
+    fi
 done
 
-# 사용자 홈 디렉터리 설정 파일 수정
-while IFS=: read -r username _ _ _ _ homedir _; do
+# 사용자 홈 디렉터리 설정 파일 검사 및 수정
+getent passwd | while IFS=: read -r name password uid gid gecos home shell; do
+    user_files=(
+        ".profile"
+        ".cshrc"
+        ".login"
+        ".kshrc"
+        ".bash_profile"
+        ".bashrc"
+        ".bash_login"
+    )
     for user_file in "${user_files[@]}"; do
-        if [ -d "$homedir" ]; then
-            update_path_in_file "$homedir/$user_file"
+        full_path="$home/$user_file"
+        if [ -f "$full_path" ]; then
+            remove_dot_from_path "$full_path"
         fi
     done
-done < /etc/passwd
+done
 
-echo "모든 관련 파일에서 PATH 환경변수 수정 완료."
+echo ""U-05 PATH 환경변수에 '.' 이 맨 앞이나 중간에 포함되지 않도록 설정."

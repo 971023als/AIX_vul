@@ -1,24 +1,23 @@
 #!/bin/bash
 
+# DoS 취약 서비스 목록
 vulnerable_services=("echo" "discard" "daytime" "chargen")
-xinetd_dir="/etc/xinetd.d"
-inetd_conf="/etc/inetd.conf"
 
-# /etc/xinetd.d 디렉터리 내의 서비스 비활성화
+# /etc/xinetd.d 내의 서비스 비활성화
 for service in "${vulnerable_services[@]}"; do
-    service_path="$xinetd_dir/$service"
+    service_path="/etc/xinetd.d/$service"
     if [ -f "$service_path" ]; then
-        sed -i 's/disable\s*=\s*no/disable = yes/' "$service_path"
-        echo "$service 서비스가 $service_path 파일에서 비활성화되었습니다."
+        echo "disabling $service service in xinetd"
+        sed -i 's/disable[ ]*=[ ]*no/disable = yes/g' "$service_path"
     fi
 done
 
-# /etc/inetd.conf 파일 내의 서비스 주석 처리
-if [ -f "$inetd_conf" ]; then
-    for service in "${vulnerable_services[@]}"; do
-        sed -i "/^$service /s/^/#/" "$inetd_conf"
-        echo "$service 서비스가 $inetd_conf 파일에서 비활성화되었습니다."
-    done
-fi
+# /etc/inetd.conf 내의 서비스 비활성화
+for service in "${vulnerable_services[@]}"; do
+    if grep -q "^$service" /etc/inetd.conf 2>/dev/null; then
+        echo "disabling $service service in inetd"
+        sed -i "/^$service/s/^/#/" /etc/inetd.conf
+    fi
+done
 
-echo "모든 DoS 공격에 취약한 서비스가 비활성화되었습니다."
+echo "U-23 DoS 공격에 취약한 서비스 비활성화 작업이 완료되었습니다."

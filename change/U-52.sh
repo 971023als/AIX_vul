@@ -1,32 +1,24 @@
 #!/bin/bash
 
-min_regular_user_uid=1000
-declare -A uid_counts
-duplicate_uids=()
-
-if [ -f "/etc/passwd" ]; then
-    # UID를 추출하고, 정규 사용자 UID(>=1000)에 대해 중복을 검사합니다.
-    while IFS=: read -r username _ uid _; do
-        if [ "$uid" -ge "$min_regular_user_uid" ]; then
-            uid_counts["$uid"]=$((uid_counts["$uid"]+1))
-        fi
-    done < <(grep -v '^#' /etc/passwd)
-
-    for uid in "${!uid_counts[@]}"; do
-        if [ "${uid_counts[$uid]}" -gt 1 ]; then
-            duplicate_uids+=("UID $uid (${uid_counts[$uid]}x)")
-        fi
+# 중복 UID가 있는 사용자 계정 식별 및 보고
+identify_duplicate_uids() {
+    echo "중복 UID를 가진 계정 식별 중..."
+    awk -F: 'BEGIN { min_uid=1000 } $3 >= min_uid { print $3 }' /etc/passwd | sort | uniq -d | while read -r uid; do
+        echo "중복 UID 발견: $uid"
+        grep ":$uid:" /etc/passwd | awk -F: '{ print "계정명: " $1 ", UID: " $3 }'
     done
+}
 
-    if [ ${#duplicate_uids[@]} -gt 0 ]; then
-        duplicates_formatted=$(IFS=, ; echo "${duplicate_uids[*]}")
-        jq --arg duplicates "$duplicates_formatted" '.진단 결과 = "취약" | .현황 += ["동일한 UID로 설정된 사용자 계정이 존재합니다: " + $duplicates]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-    else
-        jq '.현황 += ["동일한 UID를 공유하는 사용자 계정이 없습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-    fi
-else
-    jq '.진단 결과 = "취약" | .현황 += ["/etc/passwd 파일이 없습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-fi
+# 중복 UID 계정의 조치를 위한 권장 사항 출력
+recommendations_for_duplicate_uids() {
+    echo "U-52 조치 권장 사항:"
+    echo "- 각 사용자 계정이 고유한 UID를 갖도록 중복 UID를 가진 계정을 제거하거나 수정합니다."
+    echo "- 필요한 경우 시스템 관리자와 협력하여 계정을 재구성하세요."
+}
 
-# 결과 출력
-cat $results_file
+main() {
+    identify_duplicate_uids
+    recommendations_for_duplicate_uids
+}
+
+main

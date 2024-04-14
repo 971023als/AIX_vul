@@ -1,23 +1,28 @@
 #!/bin/bash
 
-login_defs_path="/etc/login.defs"
+# /etc/login.defs 파일에서 패스워드 최소 사용 기간 설정
+update_login_defs() {
+    # 패스워드 최소 사용 기간을 1일로 설정
+    echo "패스워드 최소 사용 기간을 1일로 설정합니다."
+    sed -i '/^PASS_MIN_DAYS/ s/[0-9]\+/1/' /etc/login.defs
+}
 
-if [ -f "$login_defs_path" ]; then
-    while IFS= read -r line; do
-        if echo "$line" | grep -q "PASS_MIN_DAYS" && ! echo "$line" | grep -q "^#"; then
-            min_days=$(echo "$line" | awk '{print $2}')
-            if [ "$min_days" -ge 1 ]; then
-                # 양호한 경우, 추가적인 조치 필요 없음
-                echo "패스워드 최소 사용기간이 $min_days 일로 설정되어 있어 양호합니다."
-            else
-                jq --arg min_days "$min_days" '.진단 결과 = "취약" | .현황 += ["/etc/login.defs 파일에 패스워드 최소 사용 기간이 1일 미만으로 설정되어 있습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-            fi
-            break
-        fi
-    done < "$login_defs_path"
-else
-    jq '.진단 결과 = "취약" | .현황 += ["/etc/login.defs 파일이 없습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-fi
+# PAM 설정에서 패스워드 최소 사용 기간 설정
+update_pam() {
+    # /etc/pam.d/common-password 파일에서 패스워드 정책을 수정
+    if grep -q "pam_pwhistory.so" "/etc/pam.d/common-password"; then
+        echo "PAM 설정에서 패스워드 최소 사용 기간을 1일로 설정합니다."
+        sed -i '/pam_pwhistory.so/ s/remember=[0-9]\+/remember=1/' /etc/pam.d/common-password
+    else
+        echo "pam_pwhistory.so 설정이 /etc/pam.d/common-password 파일에 없습니다."
+    fi
+}
 
-# 결과 출력
-cat $results_file
+main() {
+    echo "패스워드 최소 사용 기간 설정을 업데이트합니다..."
+    update_login_defs
+    update_pam
+    echo "U-48 업데이트 완료."
+}
+
+main

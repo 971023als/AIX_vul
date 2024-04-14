@@ -1,12 +1,11 @@
 #!/bin/bash
 
-# 검사 시작 디렉터리 설정
-start_dir='/tmp'  # 전체 시스템 스캔을 위해 필요에 따라 변경 가능
+# 시작 디렉터리 설정
+# 전체 시스템을 스캔하고 싶다면 start_dir="/"로 설정하세요. 
+# 단, 전체 시스템 스캔은 시스템에 부하를 줄 수 있으므로 주의하여 실행하세요.
+start_dir="/tmp"
 
-# world writable 파일 권한 제거
-find "$start_dir" -type f -perm -002 -print0 | while IFS= read -r -d '' file; do
-    chmod o-w "$file"
-    echo "world writable 권한이 제거되었습니다: $file"
-done
+# world writable 파일 찾기 및 권한 조정
+find "$start_dir" -type f -perm -002 -exec echo "World writable 파일 찾음: {}" \; -exec chmod o-w {} \; 
 
-echo "모든 world writable 파일에서 권한이 제거되었습니다."
+echo "U-15 World writable 파일의 권한 조정이 완료되었습니다."

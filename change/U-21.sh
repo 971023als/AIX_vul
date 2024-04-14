@@ -1,26 +1,34 @@
 #!/bin/bash
 
-r_commands=("rsh" "rlogin" "rexec" "shell" "login" "exec")
-xinetd_dir="/etc/xinetd.d"
-inetd_conf="/etc/inetd.conf"
+# xinetd 또는 inetd를 통해 제공되는 r 계열 서비스 비활성화
+r_services=("rsh" "rlogin" "rexec" "shell" "login" "exec")
 
-# xinetd.d 아래 서비스 비활성화
-if [ -d "$xinetd_dir" ]; then
-    for r_command in "${r_commands[@]}"; do
-        service_path="$xinetd_dir/$r_command"
-        if [ -f "$service_path" ]; then
-            sed -i 's/disable\s*=\s*no/disable = yes/' "$service_path"
-            echo "$r_command 서비스가 $service_path 파일에서 비활성화되었습니다."
-        fi
+# /etc/xinetd.d 디렉터리 내의 r 계열 서비스 파일 수정
+for service in "${r_services[@]}"; do
+    service_path="/etc/xinetd.d/$service"
+    if [ -f "$service_path" ]; then
+        sed -i 's/disable[ ]*=[ ]*no/disable = yes/g' "$service_path"
+        echo "$service 서비스가 xinetd를 통해 비활성화되었습니다."
+    fi
+done
+
+# /etc/inetd.conf 파일 내의 r 계열 서비스 비활성화
+if [ -f "/etc/inetd.conf" ]; then
+    for service in "${r_services[@]}"; do
+        sed -i "/$service/s/^/#/" "/etc/inetd.conf"
     done
+    echo "/etc/inetd.conf 파일 내의 r 계열 서비스가 비활성화되었습니다."
 fi
 
-# inetd.conf에서 r 계열 서비스 비활성화
-if [ -f "$inetd_conf" ]; then
-    for r_command in "${r_commands[@]}"; do
-        sed -i "/^$r_command/s/^/#/" "$inetd_conf"
-        echo "$r_command 서비스가 $inetd_conf 파일에서 비활성화되었습니다."
-    done
+# 서비스 재시작
+if systemctl is-active xinetd &> /dev/null; then
+    systemctl restart xinetd
+    echo "xinetd 서비스를 재시작했습니다."
 fi
 
-echo "모든 r 계열 서비스가 비활성화되었습니다."
+if systemctl is-active inetd &> /dev/null; then
+    systemctl restart inetd
+    echo "inetd 서비스를 재시작했습니다."
+fi
+
+echo "U-21 r 계열 서비스 비활성화 작업이 완료되었습니다."
