@@ -1,6 +1,20 @@
 #!/bin/bash
 
-# AIX 시스템에서 Finger 서비스의 활성화 상태를 점검하는 스크립트
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="서비스 관리"
+code="U-19"
+riskLevel="상"
+diagnosisItem="Finger 서비스 비활성화 (AIX)"
+service="Service Management"
+diagnosisResult="양호"
+status="Finger 서비스가 비활성화되어 있거나 실행 중이지 않습니다."
 
 results=()
 diagnostic_result="양호"
@@ -22,17 +36,19 @@ if [ ${#results[@]} -eq 0 ]; then
     results+=("Finger 서비스가 비활성화되어 있거나 실행 중이지 않습니다.")
 fi
 
-# 결과를 JSON 형태로 출력
-echo "{"
-echo "    \"분류\": \"서비스 관리\","
-echo "    \"코드\": \"U-19\","
-echo "    \"위험도\": \"상\","
-echo "    \"진단 항목\": \"Finger 서비스 비활성화 (AIX)\","
-echo "    \"진단 결과\": \"$diagnostic_result\","
-echo "    \"현황\": ["
-for ((i=0; i<${#results[@]}; i++)); do
-    echo "        \"${results[$i]}\"$(if [[ $i -lt $((${#results[@]} - 1)) ]]; then echo ","; fi)"
-done
-echo "    ],"
-echo "    \"대응방안\": \"$diagnostic_action\""
-echo "}"
+# Combine status messages into a single string
+status=$(IFS="; " ; echo "${results[*]}")
+
+# Write the result to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnostic_result,$status" >> $OUTPUT_CSV
+
+# Display the result
+echo "category: $category"
+echo "code: $code"
+echo "riskLevel: $riskLevel"
+echo "diagnosisItem: $diagnosisItem"
+echo "service: $service"
+echo "diagnosisResult: $diagnostic_result"
+echo "status: $status"
+
+cat $OUTPUT_CSV
