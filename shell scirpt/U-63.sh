@@ -1,38 +1,73 @@
 #!/bin/bash
 
-# 초기 진단 결과 및 현황 설정
+. function.sh
+
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
 category="서비스 관리"
 code="U-63"
-severity="하"
-check_item="ftpusers 파일 소유자 및 권한 설정"
+riskLevel="하"
+diagnosisItem="ftpusers 파일 소유자 및 권한 설정"
+service="Account Management"
+diagnosisResult=""
+status=""
+
+BAR
+
+CODE="U-63"
+diagnosisItem="ftpusers 파일 소유자 및 권한 설정"
+
+# Write initial values to CSV
+echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+BAR
+
+cat << EOF >> $TMP1
+[양호]: ftpusers 파일의 소유자가 root로 설정되고, 권한이 640 이하로 설정된 경우
+[취약]: ftpusers 파일의 소유자가 root가 아니거나, 권한이 640보다 큰 경우
+EOF
+
+BAR
+
+# Initialize result and status
 result=""
 declare -a status
-recommendation="ftpusers 파일의 소유자를 root로 설정하고, 권한을 640 이하로 설정"
 file_checked_and_secure=false
 
-# 검사할 ftpusers 파일 목록
+# List of ftpusers files to check
 ftpusers_files=(
     "/etc/ftpusers" "/etc/pure-ftpd/ftpusers" "/etc/wu-ftpd/ftpusers"
     "/etc/vsftpd/ftpusers" "/etc/proftpd/ftpusers" "/etc/ftpd/ftpusers"
     "/etc/vsftpd.ftpusers" "/etc/vsftpd.user_list" "/etc/vsftpd/user_list"
 )
 
+# Check each ftpusers file
 for ftpusers_file in "${ftpusers_files[@]}"; do
     if [ -f "$ftpusers_file" ]; then
         file_checked_and_secure=true
-        owner=$(stat -c "%U" "$ftpusers_file")
-        permissions=$(stat -c "%a" "$ftpusers_file")
+        owner=$(ls -l "$ftpusers_file" | awk '{print $3}')
+        permissions=$(ls -l "$ftpusers_file" | awk '{print $1}')
+        permissions=${permissions:1}  # Remove the first character (file type)
 
-        # 소유자가 root가 아니거나 권한이 640보다 큰 경우
-        if [ "$owner" != "root" ] || [ "$permissions" -gt 640 ]; then
+        # Check if owner is not root or permissions are greater than 640
+        if [ "$owner" != "root" ] || [[ ! "$permissions" =~ ^rw-r----- ]]; then
             result="취약"
             [ "$owner" != "root" ] && status+=("$ftpusers_file 파일의 소유자(owner)가 root가 아닙니다.")
-            [ "$permissions" -gt 640 ] && status+=("$ftpusers_file 파일의 권한이 640보다 큽니다.")
+            [[ ! "$permissions" =~ ^rw-r----- ]] && status+=("$ftpusers_file 파일의 권한이 640보다 큽니다.")
         fi
     fi
 done
 
-# 파일 검사 후 취약하지 않은 경우 양호로 설정
+# Set result to 양호 if no issues were found
 if [ ${#status[@]} -eq 0 ]; then
     if $file_checked_and_secure; then
         result="양호"
@@ -43,14 +78,13 @@ if [ ${#status[@]} -eq 0 ]; then
     fi
 fi
 
-# 결과 출력
-echo "분류: $category"
-echo "코드: $code"
-echo "위험도: $severity"
-echo "진단 항목: $check_item"
-echo "진단 결과: $result"
-echo "현황:"
+# Write final result to CSV
+diagnosisResult="$result"
 for i in "${status[@]}"; do
-    echo "- $i"
+    echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$i" >> $OUTPUT_CSV
 done
-echo "대응방안: $recommendation"
+
+# Display the result
+cat $TMP1
+echo
+cat $OUTPUT_CSV
