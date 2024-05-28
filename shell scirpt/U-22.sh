@@ -1,16 +1,32 @@
 #!/bin/bash
 
-# AIX 시스템에서 cron 관련 파일 및 디렉토리의 권한 및 소유권을 점검하는 스크립트
+OUTPUT_CSV="output.csv"
 
-declare -A results=(
-    ["분류"]="서비스 관리"
-    ["코드"]="U-22"
-    ["위험도"]="상"
-    ["진단 항목"]="crond 파일 소유자 및 권한 설정 (AIX)"
-    ["진단 결과"]="양호"
-    ["현황"]=()
-    ["대응방안"]="crontab 명령어 일반사용자 금지 및 cron 관련 파일 640 이하 권한 설정"
-)
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="서비스 관리"
+code="U-22"
+riskLevel="상"
+diagnosisItem="crond 파일 소유자 및 권한 설정 (AIX)"
+service="Service Management"
+diagnosisResult="양호"
+status="crontab 명령어 일반사용자 금지 및 cron 관련 파일 640 이하 권한 설정"
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+cat << EOF >> $TMP1
+[양호]: crontab 명령어 일반사용자 금지 및 cron 관련 파일 640 이하 권한 설정
+[취약]: crontab 명령어 일반사용자 허용 또는 cron 관련 파일 640 이하 권한 미설정
+EOF
+
+declare -A results
+results["진단 결과"]="양호"
+results["현황"]=()
 
 function validate_file() {
     local path=$1
@@ -48,17 +64,25 @@ for path in "${cron_paths[@]}"; do
     fi
 done
 
-# 결과를 JSON 형태로 출력
-echo "{"
-echo "    \"분류\": \"${results["분류"]}\","
-echo "    \"코드\": \"${results["코드"]}\","
-echo "    \"위험도\": \"${results["위험도"]}\","
-echo "    \"진단 항목\": \"${results["진단 항목"]}\","
-echo "    \"진단 결과\": \"${results["진단 결과"]}\","
-echo "    \"현황\": ["
-for ((i=0; i<${#results["현황"][@]}; i++)); do
-    echo "        \"${results["현황"][$i]}\"$(if [[ $i -lt $((${#results["현황"][@]} - 1)) ]]; then echo ","; fi)"
-done
-echo "    ],"
-echo "    \"대응방안\": \"${results["대응방안"]}\""
-echo "}"
+# Combine status messages into a single string
+if [ "${results["진단 결과"]}" == "양호" ]; then
+    status="crontab 명령어 일반사용자 금지 및 cron 관련 파일 640 이하 권한 설정"
+else
+    status=$(IFS="; " ; echo "${results["현황"][*]}")
+fi
+
+# Write the result to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,${results["진단 결과"]},$status" >> $OUTPUT_CSV
+
+# Display the result
+echo "category: $category"
+echo "code: $code"
+echo "riskLevel: $riskLevel"
+echo "diagnosisItem: $diagnosisItem"
+echo "service: $service"
+echo "diagnosisResult: ${results["진단 결과"]}"
+echo "status: $status"
+
+cat $TMP1
+echo
+cat $OUTPUT_CSV

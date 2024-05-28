@@ -1,19 +1,31 @@
 #!/bin/bash
 
-# AIX 시스템에서 r 계열 서비스의 비활성화 상태를 점검하는 스크립트
+OUTPUT_CSV="output.csv"
 
-declare -A results=(
-    ["분류"]="서비스 관리"
-    ["코드"]="U-21"
-    ["위험도"]="상"
-    ["진단 항목"]="r 계열 서비스 비활성화 (AIX)"
-    ["진단 결과"]="양호"
-    ["현황"]=()
-    ["대응방안"]="불필요한 r 계열 서비스 비활성화"
-)
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="서비스 관리"
+code="U-21"
+riskLevel="상"
+diagnosisItem="r 계열 서비스 비활성화 (AIX)"
+service="Service Management"
+diagnosisResult="양호"
+status="모든 r 계열 서비스가 비활성화되어 있습니다."
 
 r_commands=("rsh" "rlogin" "rexec" "shell" "login" "exec")
 vulnerable_services=()
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+cat << EOF >> $TMP1
+[양호]: 모든 r 계열 서비스가 비활성화되어 있습니다.
+[취약]: 불필요한 r 계열 서비스가 실행 중입니다.
+EOF
 
 # /etc/xinetd.d 아래 서비스 검사
 if [ -d "/etc/xinetd.d" ]; then
@@ -42,23 +54,19 @@ for service in "${r_commands[@]}"; do
 done
 
 if [ ${#vulnerable_services[@]} -gt 0 ]; then
-    results["진단 결과"]="취약"
-    results["현황"]+=("불필요한 r 계열 서비스가 실행 중입니다: ${vulnerable_services[*]}")
+    diagnosisResult="취약"
+    status="불필요한 r 계열 서비스가 실행 중입니다: ${vulnerable_services[*]}"
+    echo "WARN: $status" >> $TMP1
 else
-    results["현황"]+=("모든 r 계열 서비스가 비활성화되어 있습니다.")
+    diagnosisResult="양호"
+    status="모든 r 계열 서비스가 비활성화되어 있습니다."
+    echo "OK: $status" >> $TMP1
 fi
 
-# 결과를 JSON 형태로 출력
-echo "{"
-echo "    \"분류\": \"${results["분류"]}\","
-echo "    \"코드\": \"${results["코드"]}\","
-echo "    \"위험도\": \"${results["위험도"]}\","
-echo "    \"진단 항목\": \"${results["진단 항목"]}\","
-echo "    \"진단 결과\": \"${results["진단 결과"]}\","
-echo "    \"현황\": ["
-for ((i=0; i<${#results["현황"][@]}; i++)); do
-    echo "        \"${results["현황"][$i]}\"$(if [[ $i -lt $((${#results["현황"][@]} - 1)) ]]; then echo ","; fi)"
-done
-echo "    ],"
-echo "    \"대응방안\": \"${results["대응방안"]}\""
-echo "}"
+# Write the result to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+# Display the result
+cat $TMP1
+echo
+cat $OUTPUT_CSV

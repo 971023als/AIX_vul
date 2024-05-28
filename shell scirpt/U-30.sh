@@ -1,15 +1,33 @@
 #!/bin/bash
 
-# 변수 선언 및 초기화
-declare -A results=(
-    ["분류"]="서비스 관리"
-    ["코드"]="U-30"
-    ["위험도"]="상"
-    ["진단 항목"]="Sendmail 버전 점검 (AIX)"
-    ["진단 결과"]=()
-    ["현황"]=()
-    ["대응방안"]="Sendmail 버전을 최신 버전으로 유지"
-)
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="서비스 관리"
+code="U-30"
+riskLevel="상"
+diagnosisItem="Sendmail 버전 점검 (AIX)"
+service="Service Management"
+diagnosisResult=""
+status=""
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+cat << EOF >> $TMP1
+[양호]: Sendmail 버전이 최신 버전입니다.
+[취약]: Sendmail 버전이 최신 버전이 아닙니다.
+EOF
+
+declare -A results
+results["진단 결과"]="양호"
+results["현황"]=()
+
 latest_version="8.17.1" # 최신 Sendmail 버전 예시
 
 # AIX에서 Sendmail 버전 확인
@@ -36,17 +54,21 @@ else
     results["현황"]+=("Sendmail이 설치되어 있지 않습니다.")
 fi
 
-# 결과를 JSON 형태로 출력
-echo "{"
-echo "    \"분류\": \"${results["분류"]}\","
-echo "    \"코드\": \"${results["코드"]}\","
-echo "    \"위험도\": \"${results["위험도"]}\","
-echo "    \"진단 항목\": \"${results["진단 항목"]}\","
-echo "    \"진단 결과\": \"${results["진단 결과"]}\","
-echo "    \"현황\": ["
-for i in "${!results["현황"][@]}"; do
-    echo "        \"${results["현황"][$i]}\""$(if [ $i -lt $((${#results["현황"][@]} - 1)) ]; then echo ","; fi)
-done
-echo "    ],"
-echo "    \"대응방안\": \"${results["대응방안"]}\""
-echo "}"
+# Combine status messages into a single string
+status=$(IFS="; " ; echo "${results["현황"][*]}")
+
+# Write the result to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,${results["진단 결과"]},$status" >> $OUTPUT_CSV
+
+# Display the result
+echo "category: $category"
+echo "code: $code"
+echo "riskLevel: $riskLevel"
+echo "diagnosisItem: $diagnosisItem"
+echo "service: $service"
+echo "diagnosisResult: ${results["진단 결과"]}"
+echo "status: $status"
+
+cat $TMP1
+echo
+cat $OUTPUT_CSV

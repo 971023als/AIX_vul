@@ -1,56 +1,76 @@
-#!/usr/bin/python3
-import subprocess
-import json
-import re
+#!/bin/bash
 
-def parse_version(version_string):
-    """Parse version string to a tuple of integers."""
-    return tuple(map(int, re.findall(r'\d+', version_string)))
+. function.sh
 
-def get_bind_version_aix():
-    """Get BIND version on AIX using lslpp."""
-    try:
-        output = subprocess.check_output("lslpp -L all | grep -i 'bind.base'", shell=True, text=True).strip()
-        return output
-    except subprocess.CalledProcessError:
-        return ""
+OUTPUT_CSV="output.csv"
 
-def check_dns_security_patch():
-    results = {
-        "분류": "서비스 관리",
-        "코드": "U-33",
-        "위험도": "상",
-        "진단 항목": "DNS 보안 버전 패치",
-        "진단 결과": "양호",  # Default state
-        "현황": [],
-        "대응방안": "DNS 서비스 주기적 패치 관리"
-    }
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
 
-     minimum_version = "9.18.7"  # Adjust based on actual security requirements
+# Initial Values
+category="서비스 관리"
+code="U-33"
+riskLevel="상"
+diagnosisItem="DNS 보안 버전 패치"
+service="DNS 서비스"
+diagnosisResult=""
+status=""
 
-    bind_version_output = get_bind_version_aix()
+BAR
 
-    if bind_version_output:
-        version_match = re.search(r'bind.base\w+\s+(\d+\.\d+\.\d+)', bind_version_output)
-        if version_match:
-            current_version = version_match.group(1)
-            if parse_version(current_version) < parse_version(minimum_version):
-                results["진단 결과"] = "취약"
-                results["현황"].append(f"BIND 버전이 최신 보안 버전({minimum_version}) 이상이 아닙니다: {current_version}")
-            else:
-                results["현황"].append(f"BIND 버전이 최신 보안 버전({minimum_version}) 이상입니다: {current_version}")
-        else:
-            results["진단 결과"] = "오류"
-            results["현황"].append("BIND 버전 확인 중 오류 발생 (버전 정보 없음)")
-    else:
-        results["진단 결과"] = "양호"
-        results["현황"].append("BIND가 설치되어 있지 않거나 lslpp 명령어 실행 실패")
+CODE="U-33"
+diagnosisItem="DNS 보안 버전 패치 검사"
 
-    return results
+# Write initial values to CSV
+echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
 
-def main():
-    results = check_dns_security_patch()
-    print(json.dumps(results, ensure_ascii=False, indent=4))
+TMP1=$(basename "$0").log
+> $TMP1
 
-if __name__ == "__main__":
-    main()
+BAR
+
+cat << EOF >> $TMP1
+[양호]: BIND 버전이 최신 보안 버전(9.18.7) 이상인 경우
+[취약]: BIND 버전이 최신 보안 버전(9.18.7) 이상이 아닌 경우
+EOF
+
+BAR
+
+get_bind_version_aix() {
+    lslpp -L all | grep -i 'bind.base'
+}
+
+parse_version() {
+    echo "$1" | awk -F. '{ printf "%d%03d%03d\n", $1,$2,$3 }'
+}
+
+minimum_version="9.18.7"
+
+bind_version_output=$(get_bind_version_aix)
+
+if [ -n "$bind_version_output" ]; then
+    current_version=$(echo "$bind_version_output" | awk '{print $2}')
+    if [ $(parse_version "$current_version") -lt $(parse_version "$minimum_version") ]; then
+        diagnosisResult="BIND 버전이 최신 보안 버전($minimum_version) 이상이 아닙니다: $current_version"
+        status="취약"
+        echo "WARN: $diagnosisResult" >> $TMP1
+    else
+        diagnosisResult="BIND 버전이 최신 보안 버전($minimum_version) 이상입니다: $current_version"
+        status="양호"
+        echo "OK: $diagnosisResult" >> $TMP1
+    fi
+else
+    diagnosisResult="BIND가 설치되어 있지 않거나 lslpp 명령어 실행 실패"
+    status="정보 없음"
+    echo "INFO: $diagnosisResult" >> $TMP1
+fi
+
+echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+cat $TMP1
+
+echo ; echo
+
+cat $OUTPUT_CSV
