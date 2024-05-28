@@ -1,31 +1,61 @@
 #!/bin/bash
 
-# 결과를 저장할 JSON 파일 초기화
-results_file="results.json"
-echo '{
-    "분류": "서비스 관리",
-    "코드": "U-41",
-    "위험도": "상",
-    "진단 항목": "웹서비스 영역의 분리",
-    "진단 결과": null,
-    "현황": [],
-    "대응방안": "DocumentRoot 별도 디렉터리 지정"
-}' > $results_file
+. function.sh
+
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="서비스 관리"
+code="U-41"
+riskLevel="상"
+diagnosisItem="웹서비스 영역의 분리"
+service="웹 서비스"
+diagnosisResult=""
+status=""
+
+BAR
+
+CODE="U-41"
+diagnosisItem="웹서비스 영역의 분리 검사"
+
+# Write initial values to CSV
+echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+BAR
+
+cat << EOF >> $TMP1
+[양호]: Apache DocumentRoot가 별도의 디렉터리로 적절히 설정되어 있는 경우
+[취약]: Apache DocumentRoot가 기본 디렉터리로 설정된 경우
+EOF
+
+BAR
 
 webconf_files=(".htaccess" "httpd.conf" "apache2.conf")
 document_root_set=false
 vulnerable=false
 
 for conf_file in "${webconf_files[@]}"; do
-    find_output=$(find / -name $conf_file -type f 2>/dev/null)
+    find_output=$(find / -name "$conf_file" -type f 2>/dev/null)
     for file_path in $find_output; do
-        if [[ -n "$file_path" ]]; then
+        if [ -n "$file_path" ]; then
             while IFS= read -r line; do
                 if [[ "$line" == DocumentRoot* ]] && [[ ! "$line" =~ ^# ]]; then
                     document_root_set=true
                     path=$(echo $line | awk '{print $2}' | tr -d '"')
                     if [[ "$path" == "/usr/local/apache/htdocs" ]] || [[ "$path" == "/usr/local/apache2/htdocs" ]] || [[ "$path" == "/var/www/html" ]]; then
                         vulnerable=true
+                        diagnosisResult="Apache DocumentRoot를 기본 디렉터리로 설정했습니다: $path"
+                        status="취약"
+                        echo "WARN: $diagnosisResult" >> $TMP1
+                        echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
                         break 2
                     fi
                 fi
@@ -35,12 +65,19 @@ for conf_file in "${webconf_files[@]}"; do
 done
 
 if [ "$document_root_set" = false ]; then
-    jq '.진단 결과 = "취약" | .현황 += ["Apache DocumentRoot가 설정되지 않았습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-elif [ "$vulnerable" = true ]; then
-    jq '.진단 결과 = "취약" | .현황 += ["Apache DocumentRoot를 기본 디렉터리로 설정했습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
-else
-    jq '.진단 결과 = "양호" | .현황 += ["Apache DocumentRoot가 별도의 디렉터리로 적절히 설정되어 있습니다."]' $results_file > tmp.$$.json && mv tmp.$$.json $results_file
+    diagnosisResult="Apache DocumentRoot가 설정되지 않았습니다."
+    status="취약"
+    echo "WARN: $diagnosisResult" >> $TMP1
+    echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+elif [ "$vulnerable" = false ]; then
+    diagnosisResult="Apache DocumentRoot가 별도의 디렉터리로 적절히 설정되어 있습니다."
+    status="양호"
+    echo "OK: $diagnosisResult" >> $TMP1
+    echo "$category,$CODE,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
 fi
 
-# 결과 출력
-cat $results_file
+cat $TMP1
+
+echo ; echo
+
+cat $OUTPUT_CSV
