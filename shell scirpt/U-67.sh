@@ -1,20 +1,51 @@
 #!/bin/bash
 
-# 초기 진단 결과 및 현황 설정
+. function.sh
+
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
 category="서비스 관리"
 code="U-67"
-severity="중"
-check_item="SNMP 서비스 Community String의 복잡성 설정"
-result=""
+riskLevel="중"
+diagnosisItem="SNMP 서비스 Community String의 복잡성 설정"
+service="SNMP Service"
+diagnosisResult=""
 status=""
 recommendation="SNMP Community 이름이 public, private이 아닌 경우"
 
-# SNMP 서비스 실행 여부 확인
+BAR
+
+# Write initial values to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+BAR
+
+cat << EOF >> $TMP1
+[양호]: SNMP Community String이 적절히 설정되어 있는 경우
+[취약]: SNMP Community String이 취약(public 또는 private)으로 설정되어 있는 경우
+EOF
+
+BAR
+
+# Initialize result and status
+result=""
+status=""
+
+# Check if SNMP service is running
 if ! ps -ef | grep -i "snmp" | grep -v "grep" > /dev/null; then
     result="양호"
     status="SNMP 서비스를 사용하지 않고 있습니다."
 else
-    # snmpd.conf 파일 검색
+    # Find snmpd.conf files
     snmpdconf_files=$(find / -name snmpd.conf -type f 2>/dev/null)
     weak_string_found=false
 
@@ -38,11 +69,10 @@ else
     fi
 fi
 
-# 결과 출력
-echo "분류: $category"
-echo "코드: $code"
-echo "위험도: $severity"
-echo "진단 항목: $check_item"
-echo "진단 결과: $result"
-echo "현황: $status"
-echo "대응방안: $recommendation"
+# Write final result to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$result,$status" >> $OUTPUT_CSV
+
+# Display the result
+cat $TMP1
+echo
+cat $OUTPUT_CSV

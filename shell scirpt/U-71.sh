@@ -1,13 +1,40 @@
 #!/bin/bash
 
-# Initialize diagnostic results and current status
+. function.sh
+
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
 category="서비스 관리"
 code="U-71"
-severity="중"
-check_item="Apache 웹 서비스 정보 숨김"
-result=""
+riskLevel="중"
+diagnosisItem="Apache 웹 서비스 정보 숨김"
+service="Apache"
+diagnosisResult=""
 status=""
 recommendation="ServerTokens Prod, ServerSignature Off로 설정"
+
+BAR
+
+# Write initial values to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+BAR
+
+cat << EOF >> $TMP1
+[양호]: Apache 설정이 적절히 설정되어 있는 경우
+[취약]: Apache 설정이 적절히 설정되어 있지 않은 경우
+EOF
+
+BAR
 
 # Web configuration files to search for
 webconf_files=(".htaccess" "httpd.conf" "apache2.conf")
@@ -27,23 +54,24 @@ done
 
 # Determine the diagnostic result
 if $configuration_set_correctly; then
-    result="양호"
-    status="Apache 설정이 적절히 설정되어 있습니다."
+    diagnosisResult="Apache 설정이 적절히 설정되어 있습니다."
+    status="양호"
+    echo "OK: $diagnosisResult" >> $TMP1
 else
     if pgrep -f 'apache2|httpd' > /dev/null; then
-        result="취약"
-        status="Apache 서비스를 사용하고 있으나, ServerTokens Prod, ServerSignature Off 설정이 적절히 구성되어 있지 않습니다."
+        diagnosisResult="Apache 서비스를 사용하고 있으나, ServerTokens Prod, ServerSignature Off 설정이 적절히 구성되어 있지 않습니다."
+        status="취약"
+        echo "WARN: $diagnosisResult" >> $TMP1
     else
-        result="양호"
-        status="Apache 서비스 미사용."
+        diagnosisResult="Apache 서비스 미사용."
+        status="양호"
+        echo "INFO: $diagnosisResult" >> $TMP1
     fi
 fi
 
-# Print the results
-echo "분류: $category"
-echo "코드: $code"
-echo "위험도: $severity"
-echo "진단 항목: $check_item"
-echo "진단 결과: $result"
-echo "현황: $status"
-echo "대응방안: $recommendation"
+# Write final result to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+cat $TMP1
+echo
+cat $OUTPUT_CSV
