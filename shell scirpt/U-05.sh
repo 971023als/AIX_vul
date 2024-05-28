@@ -1,5 +1,34 @@
 #!/bin/bash
 
+. function.sh
+
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="파일 및 디렉터리 관리"
+code="U-05"
+riskLevel="상"
+diagnosisItem="root홈, 패스 디렉터리 권한 및 패스 설정"
+service="Directory Management"
+diagnosisResult=""
+status=""
+
+# Write initial values to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+cat << EOF >> $TMP1
+[양호]: PATH 환경변수에 '.' 이 맨 앞이나 중간에 포함되지 않도록 설정된 경우
+[취약]: PATH 환경변수에 '.' 이 맨 앞이나 중간에 포함된 경우
+EOF
+
 # 변수 설정
 declare -a global_files=(
     "/etc/profile"
@@ -35,25 +64,24 @@ while IFS=: read -r _ _ _ _ _ home _; do
     done
 done < /etc/passwd
 
-# JSON 형태로 결과 출력
-status="양호"
+# Determine status based on conditions
 if [ ${#conditions[@]} -ne 0 ]; then
     status="취약"
+    diagnosisResult="PATH 환경변수에 '.' 이 맨 앞이나 중간에 포함되어 있습니다."
+    for condition in "${conditions[@]}"; do
+        echo "WARN: $condition" >> $TMP1
+        echo "$category,$code,$riskLevel,$diagnosisItem,$service,$condition,$status" >> $OUTPUT_CSV
+    done
+else
+    status="양호"
+    diagnosisResult="PATH 환경변수에 '.' 이 맨 앞이나 중간에 포함되지 않도록 설정되어 있습니다."
+    echo "OK: $diagnosisResult" >> $TMP1
+    echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
 fi
 
-echo "{"
-echo "  \"분류\": \"파일 및 디렉터리 관리\","
-echo "  \"코드\": \"U-05\","
-echo "  \"위험도\": \"상\","
-echo "  \"진단 항목\": \"root홈, 패스 디렉터리 권한 및 패스 설정\","
-echo "  \"진단 결과\": \"$status\","
-echo "  \"현황\": ["
-for condition in "${conditions[@]}"; do
-    echo "    \"$condition\""
-    if [[ ! ${condition} == ${conditions[-1]} ]]; then
-        echo ","
-    fi
-done
-echo "  ],"
-echo "  \"대응방안\": \"PATH 환경변수에 '.' 이 맨 앞이나 중간에 포함되지 않도록 설정\""
-echo "}"
+# Log and output CSV
+cat $TMP1
+
+echo ; echo
+
+cat $OUTPUT_CSV

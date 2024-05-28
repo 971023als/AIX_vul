@@ -1,5 +1,34 @@
 #!/bin/bash
 
+. function.sh
+
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="계정 관리"
+code="U-04"
+riskLevel="상"
+diagnosisItem="패스워드 파일 보호"
+service="Password Management"
+diagnosisResult=""
+status=""
+
+# Write initial values to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+cat << EOF >> $TMP1
+[양호]: 패스워드 정보가 안전하게 암호화되어 저장되며 /etc/security/passwd 파일의 권한 설정이 적절한 경우
+[취약]: 패스워드 정보가 안전하게 암호화되어 저장되지 않았거나 /etc/security/passwd 파일의 권한 설정이 적절하지 않은 경우
+EOF
+
 # 변수 설정
 security_passwd_file="/etc/security/passwd"
 status="양호"
@@ -18,25 +47,20 @@ else
 fi
 
 if [ "$status" == "양호" ]; then
-    conditions+=("패스워드 정보가 안전하게 암호화되어 저장되며 /etc/security/passwd 파일의 권한 설정이 적절합니다.")
+    diagnosisResult="패스워드 정보가 안전하게 암호화되어 저장되며 /etc/security/passwd 파일의 권한 설정이 적절합니다."
+    echo "OK: $diagnosisResult" >> $TMP1
+    echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
 else
-    conditions+=("패스워드 정보가 안전하게 암호화되어 저장되지 않았거나 /etc/security/passwd 파일의 권한 설정이 적절하지 않습니다.")
+    diagnosisResult="패스워드 정보가 안전하게 암호화되어 저장되지 않았거나 /etc/security/passwd 파일의 권한 설정이 적절하지 않습니다."
+    for condition in "${conditions[@]}"; do
+        echo "WARN: $condition" >> $TMP1
+        echo "$category,$code,$riskLevel,$diagnosisItem,$service,$condition,$status" >> $OUTPUT_CSV
+    done
 fi
 
-# JSON 형태로 결과 출력
-echo "{"
-echo "  \"분류\": \"계정 관리\","
-echo "  \"코드\": \"U-04\","
-echo "  \"위험도\": \"상\","
-echo "  \"진단 항목\": \"패스워드 파일 보호\","
-echo "  \"진단 결과\": \"$status\","
-echo "  \"현황\": ["
-for condition in "${conditions[@]}"; do
-    echo "    \"$condition\""
-    if [[ ! ${condition} == ${conditions[-1]} ]]; then
-        echo ","
-    fi
-done
-echo "  ],"
-echo "  \"대응방안\": \"패스워드 암호화 저장\""
-echo "}"
+# Log and output CSV
+cat $TMP1
+
+echo ; echo
+
+cat $OUTPUT_CSV

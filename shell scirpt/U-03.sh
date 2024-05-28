@@ -1,5 +1,34 @@
 #!/bin/bash
 
+. function.sh
+
+OUTPUT_CSV="output.csv"
+
+# Set CSV Headers if the file does not exist
+if [ ! -f $OUTPUT_CSV ]; then
+    echo "category,code,riskLevel,diagnosisItem,service,diagnosisResult,status" > $OUTPUT_CSV
+fi
+
+# Initial Values
+category="계정 관리"
+code="U-03"
+riskLevel="상"
+diagnosisItem="계정 잠금 임계값 설정"
+service="Account Management"
+diagnosisResult=""
+status=""
+
+# Write initial values to CSV
+echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+
+TMP1=$(basename "$0").log
+> $TMP1
+
+cat << EOF >> $TMP1
+[양호]: 계정 잠금 임계값이 10회 이하로 설정된 경우
+[취약]: 계정 잠금 임계값이 10회를 초과하여 설정된 경우
+EOF
+
 # 변수 설정
 file_path="/etc/security/user"
 status="양호"
@@ -25,20 +54,21 @@ else
     status="취약"
 fi
 
-# JSON 형태로 결과 출력
-echo "{"
-echo "  \"분류\": \"계정 관리\","
-echo "  \"코드\": \"U-03\","
-echo "  \"위험도\": \"상\","
-echo "  \"진단 항목\": \"계정 잠금 임계값 설정\","
-echo "  \"진단 결과\": \"$status\","
-echo "  \"현황\": ["
-for condition in "${conditions[@]}"; do
-    echo "    \"$condition\""
-    if [[ ! ${condition} == ${conditions[-1]} ]]; then
-        echo ","
-    fi
-done
-echo "  ],"
-echo "  \"대응방안\": \"계정 잠금 임계값을 10회 이하로 설정\""
-echo "}"
+if [ "$status" == "취약" ]; then
+    diagnosisResult="계정 잠금 임계값이 10회를 초과하여 설정되었습니다."
+    for condition in "${conditions[@]}"; do
+        echo "WARN: $condition" >> $TMP1
+        echo "$category,$code,$riskLevel,$diagnosisItem,$service,$condition,$status" >> $OUTPUT_CSV
+    done
+else
+    diagnosisResult="계정 잠금 임계값이 적절히 설정되었습니다."
+    echo "OK: $diagnosisResult" >> $TMP1
+    echo "$category,$code,$riskLevel,$diagnosisItem,$service,$diagnosisResult,$status" >> $OUTPUT_CSV
+fi
+
+# Log and output CSV
+cat $TMP1
+
+echo ; echo
+
+cat $OUTPUT_CSV
